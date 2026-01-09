@@ -64,10 +64,9 @@ llmstart_bot_homework/
 ## 4. Архитектура проекта
 
 **Компоненты:**
-1. **Telegram Bot Handler** - принимает сообщения, отправляет ответы
+1. **Telegram Bot Handler** - принимает сообщения, отправляет ответы, содержит логику обработки сообщений
 2. **LLM Client** - взаимодействие с OpenRouter/OpenAI API
 3. **Memory Storage** - хранение истории диалогов в памяти
-4. **Message Processor** - обработка логики общения
 
 **Поток данных:**
 ```
@@ -87,10 +86,9 @@ User Message → Telegram → Bot Handler → Memory Storage (get context) →
 **Структуры данных:**
 
 ```python
-# Хранение диалогов пользователей
+# Хранение диалогов пользователей (пример)
 user_sessions = {
-    chat_id: {
-        "chat_id": chat_id,  # Telegram chat ID
+    123456789: {  # chat_id как ключ
         "messages": [
             {"role": "system", "content": "системный промпт"},
             {"role": "user", "content": "сообщение пользователя"},
@@ -98,14 +96,21 @@ user_sessions = {
         ],
         "created_at": timestamp,
         "last_activity": timestamp,
+    },
+    987654321: {  # другой chat_id
+        "messages": [...],
+        "created_at": timestamp,
+        "last_activity": timestamp,
     }
 }
     
 # Конфигурация (из переменных окружения)
 config = {
-    "telegram_token": "...",
-    "openrouter_api_key": "...",
-    "max_history_messages": 10,  # лимит сообщений в истории
+    "telegram_token": getenv("TELEGRAM_BOT_TOKEN"),
+    "openrouter_api_key": getenv("OPENROUTER_API_KEY"), 
+    "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
+    "max_history_messages": int(getenv("MAX_HISTORY_MESSAGES", "10")),
+    "log_level": getenv("LOG_LEVEL", "INFO"),
 }
 ```
 
