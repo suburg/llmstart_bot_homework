@@ -9,6 +9,7 @@ config = {
     "llm_base_url": getenv("LLM_BASE_URL"),
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
     "max_history_messages": int(getenv("MAX_HISTORY_MESSAGES", "10")),
+    "max_message_length": int(getenv("MAX_MESSAGE_LENGTH", "4000")),
     "log_level": getenv("LOG_LEVEL", "INFO"),
 }
 
