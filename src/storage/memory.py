@@ -22,8 +22,11 @@ def get_session(chat_id: int) -> Session:
     """Получить сессию по chat_id (создает новую если не существует)"""
     if chat_id not in _sessions:
         logger.info(f"Creating new session for chat_id: {chat_id}")
+        from llm.prompts import load_system_prompt
+        
+        system_prompt = load_system_prompt()
         _sessions[chat_id] = {
-            "messages": [],
+            "messages": [{"role": "system", "content": system_prompt}],
             "created_at": datetime.now(),
             "last_activity": datetime.now(),
         }
@@ -36,11 +39,20 @@ def add_message(chat_id: int, role: str, content: str) -> None:
     session["messages"].append({"role": role, "content": content})
     session["last_activity"] = datetime.now()
     
-    # Ограничение истории
+    # Ограничение истории (но сохраняем системный промпт)
     max_messages = config["max_history_messages"]
-    if len(session["messages"]) > max_messages:
-        removed = len(session["messages"]) - max_messages
-        session["messages"] = session["messages"][-max_messages:]
+    total_messages = len(session["messages"])
+    
+    if total_messages > max_messages + 1:  # +1 для системного промпта
+        # Сохраняем системный промпт в начале
+        system_msg = session["messages"][0]
+        user_messages = session["messages"][1:]
+        
+        # Оставляем только последние max_messages сообщений
+        kept_messages = user_messages[-max_messages:]
+        session["messages"] = [system_msg] + kept_messages
+        
+        removed = total_messages - len(session["messages"])
         logger.info(f"Trimmed {removed} old messages for chat_id: {chat_id}")
 
 
@@ -51,10 +63,12 @@ def get_messages(chat_id: int) -> list[dict[str, str]]:
 
 
 def clear_session(chat_id: int) -> None:
-    """Очистить историю сообщений для chat_id"""
+    """Очистить историю сообщений для chat_id (кроме системного промпта)"""
     if chat_id in _sessions:
         logger.info(f"Clearing session for chat_id: {chat_id}")
-        _sessions[chat_id]["messages"] = []
+        # Сохраняем системный промпт
+        system_msg = _sessions[chat_id]["messages"][0]
+        _sessions[chat_id]["messages"] = [system_msg]
         _sessions[chat_id]["last_activity"] = datetime.now()
     else:
         logger.info(f"No session to clear for chat_id: {chat_id}")
