@@ -7,11 +7,15 @@ from bot.handlers import router
 
 def setup_logging() -> None:
     """Настройка логирования"""
+    import os
+    # Создаем папку logs если не существует
+    os.makedirs('logs', exist_ok=True)
+    
     logging.basicConfig(
         level=config["log_level"],
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('bot.log'),
+            logging.FileHandler('logs/bot.log'),
             logging.StreamHandler()
         ]
     )

@@ -10,5 +10,5 @@ run:
 
 # Очистка временных файлов
 clean:
-	rm -f bot.log
+	rm -f logs/bot.log
 	find . -type d -name "__pycache__" -exec rm -rf {} +
