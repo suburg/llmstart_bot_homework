@@ -21,6 +21,9 @@ ENV/
 logs/
 *.log
 
+# Bot PID file
+.bot.pid
+
 # IDE
 .vscode/
 .idea/
