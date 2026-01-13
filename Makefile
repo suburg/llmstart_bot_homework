@@ -1,4 +1,4 @@
-.PHONY: install run start stop status clean
+.PHONY: install run start stop status clean test docker-build docker-deploy docker-stop docker-logs
 
 # Установка зависимостей через uv
 install:
@@ -27,3 +27,24 @@ status:
 clean:
 	@powershell -Command "if (Test-Path logs/bot.log) { Remove-Item logs/bot.log }"
 	@powershell -Command "Get-ChildItem -Path . -Recurse -Filter '__pycache__' -Directory | Remove-Item -Recurse -Force"
+
+# Запуск тестов
+test:
+	uv run pytest tests/ -v
+
+# Docker: сборка образа
+docker-build:
+	docker build -t suburg-llmstart-bot .
+
+# Docker: запуск контейнера
+docker-deploy:
+	docker run -d --name suburg-llmstart-bot --env-file .env suburg-llmstart-bot
+
+# Docker: остановка и удаление контейнера
+docker-stop:
+	docker stop suburg-llmstart-bot || true
+	docker rm suburg-llmstart-bot || true
+
+# Docker: просмотр логов
+docker-logs:
+	docker logs -f suburg-llmstart-bot

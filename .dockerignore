@@ -1,0 +1,44 @@
+# Секреты и конфигурация
+.env
+.env.*
+
+# Логи
+logs/
+*.log
+
+# Python кеш
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Git
+.git/
+.gitignore
+
+# Документация (не нужна в контейнере)
+doc/
+README.md
+
+# Тесты (не нужны в production)
+tests/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Процесс-файлы
+.bot.pid
+
+# Makefile (для локальной разработки)
+Makefile
+
+# Docker файлы
+Dockerfile
+.dockerignore
