@@ -107,7 +107,7 @@ user_sessions = {
 # Конфигурация (из переменных окружения)
 config = {
     "telegram_token": getenv("TELEGRAM_BOT_TOKEN"),
-    "openrouter_api_key": getenv("OPENROUTER_API_KEY"), 
+    "llm_api_key": getenv("LLM_API_KEY"), 
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
     "max_history_messages": int(getenv("MAX_HISTORY_MESSAGES", "10")),
     "log_level": getenv("LOG_LEVEL", "INFO"),
@@ -244,7 +244,7 @@ make run-prod      # запуск в фоне (nohup/systemd)
 ```bash
 # .env файл
 TELEGRAM_BOT_TOKEN=your_bot_token
-OPENROUTER_API_KEY=your_openrouter_key
+LLM_API_KEY=your_llm_api_key
 LLM_MODEL=openai/gpt-4o-mini
 MAX_HISTORY_MESSAGES=10
 LOG_LEVEL=INFO
@@ -261,7 +261,7 @@ load_dotenv()
 
 config = {
     "telegram_token": getenv("TELEGRAM_BOT_TOKEN"),
-    "openrouter_api_key": getenv("OPENROUTER_API_KEY"), 
+    "llm_api_key": getenv("LLM_API_KEY"), 
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
     "max_history_messages": int(getenv("MAX_HISTORY_MESSAGES", "10")),
     "log_level": getenv("LOG_LEVEL", "INFO"),

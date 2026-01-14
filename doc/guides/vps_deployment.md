@@ -217,8 +217,8 @@ nano .env
 # Telegram Bot Token (получен от @BotFather)
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# OpenRouter API Key
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+# LLM API Key
+LLM_API_KEY=your_llm_api_key_here
 
 # LLM Model (опционально)
 LLM_MODEL=meta-llama/llama-3.1-8b-instruct:free
@@ -481,7 +481,7 @@ docker logs telegram-bot
 2. Проверьте переменные окружения:
 ```bash
 docker exec telegram-bot env | grep TELEGRAM
-docker exec telegram-bot env | grep OPENROUTER
+docker exec telegram-bot env | grep LLM
 ```
 
 3. Проверьте сетевое подключение:
