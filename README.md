@@ -41,6 +41,19 @@ make docker-logs
 make docker-stop
 ```
 
+### Вариант 3: Деплой на облачный VPS
+
+Для развертывания бота на виртуальном сервере (VPS) с Ubuntu и Docker:
+
+📘 **[Полная инструкция по деплою на VPS](doc/guides/vps_deployment.md)**
+
+Краткие шаги:
+1. Настроить VPS на beget.com с Ubuntu Linux
+2. Установить Docker на сервере
+3. Клонировать репозиторий
+4. Настроить переменные окружения
+5. Собрать и запустить контейнер с автоперезапуском
+
 ## 📋 Команды бота
 
 - `/start` - начало работы, приветствие
@@ -63,3 +76,7 @@ make test
 - [product_idea.md](doc/product_idea.md) - идея продукта
 - [vision.md](doc/vision.md) - техническое видение
 - [tasklist.md](doc/tasklist.md) - план разработки
+
+### Руководства по развертыванию
+- [vps_deployment.md](doc/guides/vps_deployment.md) - развертывание на VPS с Docker
+- [telegram_bot_registration.md](doc/guides/telegram_bot_registration.md) - регистрация Telegram бота
