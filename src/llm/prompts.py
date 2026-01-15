@@ -19,3 +19,17 @@ def load_system_prompt() -> str:
     except Exception as e:
         logger.error(f"Error loading system prompt: {e}")
         raise
+
+
+def get_current_system_prompt(chat_id: int) -> str:
+    """Получить текущий системный промпт (кастомный или дефолтный)"""
+    from storage.memory import get_session
+    
+    session = get_session(chat_id)
+    custom = session.get("custom_prompt")
+    
+    if custom:
+        logger.info(f"Using custom prompt for chat_id: {chat_id}")
+        return custom
+    
+    return load_system_prompt()

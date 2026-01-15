@@ -12,6 +12,7 @@ class Session(TypedDict):
     messages: list[dict[str, str]]
     created_at: datetime
     last_activity: datetime
+    custom_prompt: str | None
 
 
 # Глобальное хранилище сессий
@@ -29,6 +30,7 @@ def get_session(chat_id: int) -> Session:
             "messages": [{"role": "system", "content": system_prompt}],
             "created_at": datetime.now(),
             "last_activity": datetime.now(),
+            "custom_prompt": None,
         }
     return _sessions[chat_id]
 
@@ -72,3 +74,30 @@ def clear_session(chat_id: int) -> None:
         _sessions[chat_id]["last_activity"] = datetime.now()
     else:
         logger.info(f"No session to clear for chat_id: {chat_id}")
+
+
+def get_system_prompt(chat_id: int) -> str:
+    """Получить текущий системный промпт из сессии"""
+    session = get_session(chat_id)
+    return session["messages"][0]["content"]
+
+
+def set_custom_prompt(chat_id: int, new_prompt: str) -> None:
+    """Установить кастомный системный промпт и очистить историю"""
+    logger.info(f"Setting custom prompt for chat_id: {chat_id}")
+    session = get_session(chat_id)
+    session["custom_prompt"] = new_prompt
+    session["messages"] = [{"role": "system", "content": new_prompt}]
+    session["last_activity"] = datetime.now()
+
+
+def reset_system_prompt(chat_id: int) -> None:
+    """Сбросить системный промпт к изначальному варианту"""
+    logger.info(f"Resetting system prompt for chat_id: {chat_id}")
+    from llm.prompts import load_system_prompt
+    
+    session = get_session(chat_id)
+    system_prompt = load_system_prompt()
+    session["custom_prompt"] = None
+    session["messages"][0] = {"role": "system", "content": system_prompt}
+    session["last_activity"] = datetime.now()
