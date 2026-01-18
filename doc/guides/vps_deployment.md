@@ -258,17 +258,17 @@ sudo apt install make -y
 # Сборка образа через Makefile
 make docker-build
 
-# Эта команда выполняет: docker build -t telegram-bot .
+# Эта команда выполняет: docker build -t suburg-llmstart-bot .
 ```
 
 **Вариант B: Прямой вызов Docker**
 
 ```bash
 # Сборка образа напрямую
-docker build -t telegram-bot .
+docker build -t suburg-llmstart-bot .
 
 # Проверка созданного образа
-docker images | grep telegram-bot
+docker images | grep suburg-llmstart-bot
 ```
 
 ### 6.3. Запуск контейнера с автоперезапуском
@@ -280,7 +280,7 @@ docker images | grep telegram-bot
 make docker-deploy
 
 # Эта команда автоматически:
-# - Запускает контейнер с именем telegram-bot
+# - Запускает контейнер с именем suburg-llmstart-bot
 # - Настраивает автоперезапуск
 # - Монтирует директорию логов
 # - Загружает переменные из .env
@@ -291,11 +291,11 @@ make docker-deploy
 ```bash
 # Запуск контейнера с политикой автоперезапуска
 docker run -d \
-  --name telegram-bot \
+  --name suburg-llmstart-bot \
   --restart unless-stopped \
   --env-file .env \
   -v $(pwd)/logs:/app/logs \
-  telegram-bot
+  suburg-llmstart-bot
 
 # Проверка статуса контейнера
 docker ps
@@ -303,7 +303,7 @@ docker ps
 
 **Параметры запуска:**
 - `-d` - запуск в фоновом режиме (detached)
-- `--name telegram-bot` - имя контейнера
+- `--name suburg-llmstart-bot` - имя контейнера
 - `--restart unless-stopped` - автоматический перезапуск при сбое или перезагрузке сервера
 - `--env-file .env` - загрузка переменных окружения из файла
 - `-v $(pwd)/logs:/app/logs` - монтирование директории логов
@@ -321,13 +321,13 @@ make docker-logs
 
 ```bash
 # Просмотр логов контейнера
-docker logs telegram-bot
+docker logs suburg-llmstart-bot
 
 # Просмотр логов в реальном времени
-docker logs -f telegram-bot
+docker logs -f suburg-llmstart-bot
 
 # Последние 100 строк логов
-docker logs --tail 100 telegram-bot
+docker logs --tail 100 suburg-llmstart-bot
 ```
 
 ## 7. Управление контейнером
@@ -344,7 +344,7 @@ make docker-stop
 make docker-logs
 
 # Просмотр статуса (через docker ps)
-docker ps | grep telegram-bot
+docker ps | grep suburg-llmstart-bot
 ```
 
 **Используя Docker напрямую:**
@@ -354,17 +354,17 @@ docker ps | grep telegram-bot
 docker ps
 
 # Остановка контейнера
-docker stop telegram-bot
+docker stop suburg-llmstart-bot
 
 # Запуск остановленного контейнера
-docker start telegram-bot
+docker start suburg-llmstart-bot
 
 # Перезапуск контейнера
-docker restart telegram-bot
+docker restart suburg-llmstart-bot
 
 # Удаление контейнера (сначала нужно остановить)
-docker stop telegram-bot
-docker rm telegram-bot
+docker stop suburg-llmstart-bot
+docker rm suburg-llmstart-bot
 ```
 
 ### 7.2. Обновление бота
@@ -381,7 +381,7 @@ cd ~/llmstart_bot_homework
 make docker-stop
 
 # 3. Обновление кода из репозитория
-git pull origin main
+git pull origin master
 
 # 4. Пересборка образа
 make docker-build
@@ -397,29 +397,29 @@ make docker-deploy
 cd ~/llmstart_bot_homework
 
 # 2. Остановка и удаление старого контейнера
-docker stop telegram-bot
-docker rm telegram-bot
+docker stop suburg-llmstart-bot
+docker rm suburg-llmstart-bot
 
 # 3. Обновление кода из репозитория
 git pull origin main
 
 # 4. Пересборка образа
-docker build -t telegram-bot .
+docker build -t suburg-llmstart-bot .
 
 # 5. Запуск нового контейнера
 docker run -d \
-  --name telegram-bot \
+  --name suburg-llmstart-bot \
   --restart unless-stopped \
   --env-file .env \
   -v $(pwd)/logs:/app/logs \
-  telegram-bot
+  suburg-llmstart-bot
 ```
 
 ### 7.3. Просмотр использования ресурсов
 
 ```bash
 # Статистика использования ресурсов контейнером
-docker stats telegram-bot
+docker stats suburg-llmstart-bot
 
 # Нажмите Ctrl+C для выхода
 ```
@@ -430,10 +430,10 @@ docker stats telegram-bot
 
 ```bash
 # Проверка статуса контейнера
-docker ps | grep telegram-bot
+docker ps | grep suburg-llmstart-bot
 
 # Проверка последних логов
-docker logs --tail 50 telegram-bot
+docker logs --tail 50 suburg-llmstart-bot
 
 # Проверка файла логов на сервере
 tail -f logs/bot.log
@@ -465,28 +465,28 @@ ls -lh logs-backup-*.tar.gz
 
 ```bash
 # Проверка логов для диагностики
-docker logs telegram-bot
+docker logs suburg-llmstart-bot
 
 # Запуск контейнера в интерактивном режиме для отладки
-docker run -it --rm --env-file .env telegram-bot bash
+docker run -it --rm --env-file .env suburg-llmstart-bot bash
 ```
 
 ### 9.2. Бот не отвечает в Telegram
 
 1. Проверьте логи контейнера:
 ```bash
-docker logs telegram-bot
+docker logs suburg-llmstart-bot
 ```
 
 2. Проверьте переменные окружения:
 ```bash
-docker exec telegram-bot env | grep TELEGRAM
-docker exec telegram-bot env | grep LLM
+docker exec suburg-llmstart-bot env | grep TELEGRAM
+docker exec suburg-llmstart-bot env | grep LLM
 ```
 
 3. Проверьте сетевое подключение:
 ```bash
-docker exec telegram-bot ping -c 3 8.8.8.8
+docker exec suburg-llmstart-bot ping -c 3 8.8.8.8
 ```
 
 ### 9.3. Ошибки с правами доступа к логам
@@ -518,10 +518,10 @@ rm -f logs/*.log.old
 
 ```bash
 # Проверка существующих контейнеров с таким именем
-docker ps -a | grep telegram-bot
+docker ps -a | grep suburg-llmstart-bot
 
 # Удаление конфликтующего контейнера
-docker rm -f telegram-bot
+docker rm -f suburg-llmstart-bot
 ```
 
 ## 10. Безопасность
@@ -572,13 +572,13 @@ docker images
 docker ps -a
 
 # Вход в работающий контейнер
-docker exec -it telegram-bot bash
+docker exec -it suburg-llmstart-bot bash
 
 # Копирование файла из контейнера
-docker cp telegram-bot:/app/logs/bot.log ./bot.log
+docker cp suburg-llmstart-bot:/app/logs/bot.log ./bot.log
 
 # Просмотр информации о контейнере
-docker inspect telegram-bot
+docker inspect suburg-llmstart-bot
 
 # Просмотр использования диска Docker
 docker system df
