@@ -3,52 +3,85 @@ import logging
 from aiogram import Router
 from aiogram.types import Message
 
-from llm.client import send_message
-from storage.memory import add_message, get_messages
-from config import config
-from .utils import (
-    validate_message_length,
-    send_too_long_error,
-    send_error_message,
-    log_message_received,
-    log_response_sent,
-    log_message_error,
+from storage.memory import (
+    get_story_session,
+    update_story_session,
+    is_user_greeted,
+    mark_user_greeted,
 )
+from story import manager
+from bot.keyboards import get_who_starts_keyboard
+from llm import client, prompts
 
 logger = logging.getLogger(__name__)
 messages_router = Router()
-
-
-async def process_user_message(chat_id: int, user_text: str) -> str:
-    """Обработка сообщения пользователя через LLM"""
-    add_message(chat_id, "user", user_text)
-    messages = get_messages(chat_id)
-    llm_response = await send_message(messages)
-    add_message(chat_id, "assistant", llm_response)
-    return llm_response
 
 
 @messages_router.message()
 async def message_handler(message: Message) -> None:
     """Обработчик текстовых сообщений"""
     chat_id = message.chat.id
-    user_text = message.text
+    text = message.text
     username = message.from_user.username or "unknown"
     
-    if not validate_message_length(user_text, config["max_message_length"]):
-        logger.warning(
-            f"Message too long: chat_id={chat_id}, "
-            f"length={len(user_text)}, user={username}"
+    # Автоматическое приветствие для новых пользователей
+    if not is_user_greeted(chat_id):
+        mark_user_greeted(chat_id)
+        welcome_text = (
+            "Привет! 👋 Я помогу тебе сочинить увлекательную историю!\n\n"
+            "Напиши /new_story чтобы начать, или /help для справки."
         )
-        await send_too_long_error(message, len(user_text))
+        await message.answer(welcome_text)
+        logger.info(f"Auto-greeted new user {chat_id}")
         return
     
-    log_message_received(chat_id, len(user_text), username)
+    session = get_story_session(chat_id)
     
-    try:
-        llm_response = await process_user_message(chat_id, user_text)
-        log_response_sent(chat_id, len(llm_response))
-        await message.answer(llm_response)
-    except Exception as e:
-        log_message_error(chat_id, e)
-        await send_error_message(message)
+    # Если нет активной сессии
+    if not session:
+        await message.answer("Давай создадим историю! Напиши /new_story")
+        return
+    
+    state = session.get("state")
+    
+    # Обработка ввода имени героя (единственный текстовый ввод в выборе параметров)
+    if state == "entering_hero_name":
+        response = manager.process_hero_name(chat_id, text)
+        keyboard = get_who_starts_keyboard()
+        await message.answer(response, reply_markup=keyboard)
+        logger.info(f"User {chat_id} entered hero name: {text}")
+        
+    elif state == "storytelling":
+        # Процесс сочинения - добавляем сообщение пользователя
+        session["content"].append({"role": "user", "content": text})
+        update_story_session(chat_id, {"content": session["content"]})
+        
+        # Генерируем продолжение от бота
+        params = session["params"]
+        genre_context = manager.get_genre_context(params["genre"])
+        
+        system_prompt = prompts.load_system_prompt()
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Добавляем контекст жанра
+        messages.append({
+            "role": "system",
+            "content": f"Жанр истории: {genre_context}. Главный герой: {params['main_hero']}."
+        })
+        
+        # Добавляем историю
+        messages.extend(session["content"])
+        
+        bot_response = await client.send_message(messages)
+        
+        # Сохраняем ответ бота
+        session["content"].append({"role": "assistant", "content": bot_response})
+        update_story_session(chat_id, {"content": session["content"]})
+        
+        await message.answer(bot_response)
+        logger.info(f"Story continues for user {chat_id}, pairs: {len(session['content'])//2}")
+    
+    else:
+        # Неожиданное состояние
+        await message.answer("Что-то пошло не так. Попробуй начать заново: /new_story")
+        logger.warning(f"Unexpected state for user {chat_id}: {state}")

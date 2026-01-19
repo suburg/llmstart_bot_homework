@@ -1,103 +1,55 @@
+"""Хранение состояния активных историй в памяти"""
 import logging
-from datetime import datetime
-from typing import TypedDict
-
-from config import config
 
 logger = logging.getLogger(__name__)
 
-
-class Session(TypedDict):
-    """Структура сессии пользователя"""
-    messages: list[dict[str, str]]
-    created_at: datetime
-    last_activity: datetime
-    custom_prompt: str | None
-
-
 # Глобальное хранилище сессий
-_sessions: dict[int, Session] = {}
+_sessions: dict[int, dict] = {}
 
 
-def get_session(chat_id: int) -> Session:
-    """Получить сессию по chat_id (создает новую если не существует)"""
-    if chat_id not in _sessions:
-        logger.info(f"Creating new session for chat_id: {chat_id}")
-        from llm.prompts import load_system_prompt
-        
-        system_prompt = load_system_prompt()
-        _sessions[chat_id] = {
-            "messages": [{"role": "system", "content": system_prompt}],
-            "created_at": datetime.now(),
-            "last_activity": datetime.now(),
-            "custom_prompt": None,
-        }
-    return _sessions[chat_id]
+def get_story_session(chat_id: int) -> dict | None:
+    """Получить активную сессию истории"""
+    return _sessions.get(chat_id)
 
 
-def add_message(chat_id: int, role: str, content: str) -> None:
-    """Добавить сообщение в историю"""
-    session = get_session(chat_id)
-    session["messages"].append({"role": role, "content": content})
-    session["last_activity"] = datetime.now()
-    
-    # Ограничение истории (но сохраняем системный промпт)
-    max_messages = config["max_history_messages"]
-    total_messages = len(session["messages"])
-    
-    if total_messages > max_messages + 1:  # +1 для системного промпта
-        # Сохраняем системный промпт в начале
-        system_msg = session["messages"][0]
-        user_messages = session["messages"][1:]
-        
-        # Оставляем только последние max_messages сообщений
-        kept_messages = user_messages[-max_messages:]
-        session["messages"] = [system_msg] + kept_messages
-        
-        removed = total_messages - len(session["messages"])
-        logger.info(f"Trimmed {removed} old messages for chat_id: {chat_id}")
+def create_story_session(chat_id: int, params: dict) -> dict:
+    """Создать новую сессию истории"""
+    session = {
+        "chat_id": chat_id,
+        "state": "choosing_genre",
+        "params": params,
+        "content": [],
+        "is_greeted": True
+    }
+    _sessions[chat_id] = session
+    logger.info(f"Created story session for chat_id: {chat_id}")
+    return session
 
 
-def get_messages(chat_id: int) -> list[dict[str, str]]:
-    """Получить историю сообщений"""
-    session = get_session(chat_id)
-    return session["messages"]
-
-
-def clear_session(chat_id: int) -> None:
-    """Очистить историю сообщений для chat_id (кроме системного промпта)"""
+def update_story_session(chat_id: int, updates: dict) -> None:
+    """Обновить сессию истории"""
     if chat_id in _sessions:
-        logger.info(f"Clearing session for chat_id: {chat_id}")
-        # Сохраняем системный промпт
-        system_msg = _sessions[chat_id]["messages"][0]
-        _sessions[chat_id]["messages"] = [system_msg]
-        _sessions[chat_id]["last_activity"] = datetime.now()
+        _sessions[chat_id].update(updates)
+        logger.debug(f"Updated story session for chat_id: {chat_id}")
+
+
+def clear_story_session(chat_id: int) -> None:
+    """Очистить сессию"""
+    if chat_id in _sessions:
+        _sessions.pop(chat_id)
+        logger.info(f"Cleared story session for chat_id: {chat_id}")
+
+
+def is_user_greeted(chat_id: int) -> bool:
+    """Проверить, показано ли приветствие пользователю"""
+    session = _sessions.get(chat_id)
+    return session.get("is_greeted", False) if session else False
+
+
+def mark_user_greeted(chat_id: int) -> None:
+    """Отметить, что пользователю показано приветствие"""
+    if chat_id not in _sessions:
+        _sessions[chat_id] = {"is_greeted": True}
+        logger.info(f"Marked user as greeted: {chat_id}")
     else:
-        logger.info(f"No session to clear for chat_id: {chat_id}")
-
-
-def get_system_prompt(chat_id: int) -> str:
-    """Получить текущий системный промпт из сессии"""
-    session = get_session(chat_id)
-    return session["messages"][0]["content"]
-
-
-def set_custom_prompt(chat_id: int, new_prompt: str) -> None:
-    """Установить кастомный системный промпт и очистить историю"""
-    logger.info(f"Setting custom prompt for chat_id: {chat_id}")
-    session = get_session(chat_id)
-    session["custom_prompt"] = new_prompt
-    session["messages"] = [{"role": "system", "content": new_prompt}]
-    session["last_activity"] = datetime.now()
-
-
-def reset_system_prompt(chat_id: int) -> None:
-    """Сбросить системный промпт к изначальному варианту"""
-    logger.info(f"Resetting system prompt for chat_id: {chat_id}")
-    from llm.prompts import load_system_prompt
-    
-    session = get_session(chat_id)
-    system_prompt = load_system_prompt()
-    session["custom_prompt"] = None
-    session["messages"][0] = {"role": "system", "content": system_prompt}
-    session["last_activity"] = datetime.now()
+        _sessions[chat_id]["is_greeted"] = True

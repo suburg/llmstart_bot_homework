@@ -1,14 +1,15 @@
 """Обработчики команд бота"""
 import logging
-from aiogram import Router
-from aiogram.types import Message
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
 
-from storage.memory import (
-    clear_session,
-    reset_system_prompt,
-    get_system_prompt,
-    set_custom_prompt,
+from storage.memory import mark_user_greeted, get_story_session, update_story_session
+from story import manager
+from bot.keyboards import (
+    get_genre_keyboard,
+    get_duration_keyboard,
+    get_who_starts_keyboard,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,22 +21,103 @@ async def start_handler(message: Message) -> None:
     """Обработчик команды /start"""
     chat_id = message.chat.id
     username = message.from_user.username or "unknown"
+    mark_user_greeted(chat_id)
+    
+    welcome_text = (
+        "Привет! 👋 Я помогу тебе сочинить увлекательную историю!\n\n"
+        "Мы будем писать её вместе, по очереди. Ты сможешь выбрать:\n"
+        "📚 Жанр (сказка, приключение, фэнтези, детектив)\n"
+        "⏱ Длительность (короткая, средняя, длинная)\n"
+        "🦸 Имя главного героя\n"
+        "✍️ Кто начнёт историю - ты или я\n\n"
+        "Готов создать свою историю? Напиши /new_story"
+    )
+    await message.answer(welcome_text)
     logger.info(f"Command: /start, chat_id={chat_id}, user={username}")
-    await message.answer("Задайте свой вопрос")
 
 
-@commands_router.message(Command("clear"))
-async def clear_handler(message: Message) -> None:
-    """Обработчик команды /clear - очистка истории"""
+@commands_router.message(Command("new_story"))
+async def new_story_handler(message: Message) -> None:
+    """Обработчик команды /new_story"""
     chat_id = message.chat.id
     username = message.from_user.username or "unknown"
-    logger.info(f"Command: /clear, chat_id={chat_id}, user={username}")
     
-    clear_session(chat_id)
-    reset_system_prompt(chat_id)
-    await message.answer(
-        "История диалога очищена. Системный промпт сброшен. Начнем сначала!"
-    )
+    response = manager.start_story_creation(chat_id)
+    keyboard = get_genre_keyboard()
+    await message.answer(response, reply_markup=keyboard)
+    logger.info(f"Command: /new_story, chat_id={chat_id}, user={username}")
+
+
+@commands_router.callback_query(F.data.startswith("genre:"))
+async def process_genre_callback(callback: CallbackQuery) -> None:
+    """Обработчик выбора жанра"""
+    chat_id = callback.message.chat.id
+    genre = callback.data.split(":")[1]
+    
+    response = manager.process_genre_choice(chat_id, genre)
+    keyboard = get_duration_keyboard()
+    
+    await callback.message.edit_text(response, reply_markup=keyboard)
+    await callback.answer()
+    logger.info(f"User {chat_id} chose genre: {genre}")
+
+
+@commands_router.callback_query(F.data.startswith("duration:"))
+async def process_duration_callback(callback: CallbackQuery) -> None:
+    """Обработчик выбора длительности"""
+    chat_id = callback.message.chat.id
+    duration = callback.data.split(":")[1]
+    
+    response = manager.process_duration_choice(chat_id, duration)
+    
+    # Убираем кнопки, переходим к текстовому вводу имени героя
+    await callback.message.edit_text(response)
+    await callback.answer()
+    logger.info(f"User {chat_id} chose duration: {duration}")
+
+
+@commands_router.callback_query(F.data.startswith("starts:"))
+async def process_who_starts_callback(callback: CallbackQuery) -> None:
+    """Обработчик выбора кто начинает"""
+    chat_id = callback.message.chat.id
+    who = callback.data.split(":")[1]
+    
+    response, need_bot_start = manager.process_who_starts(chat_id, who)
+    
+    # Убираем кнопки
+    await callback.message.edit_text(response)
+    await callback.answer()
+    logger.info(f"User {chat_id} chose who starts: {who}")
+    
+    # Если бот начинает - генерируем начало
+    if need_bot_start:
+        from llm import client, prompts
+        
+        session = get_story_session(chat_id)
+        params = session["params"]
+        
+        # Формируем промпт для начала истории
+        genre_context = manager.get_genre_context(params["genre"])
+        hero = params["main_hero"]
+        
+        story_prompt = (
+            f"Начни {genre_context} про главного героя по имени {hero}. "
+            f"Напиши только 2-3 первых предложения, которые заинтересуют ребенка."
+        )
+        
+        system_prompt = prompts.load_system_prompt()
+        bot_start = await client.send_message([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": story_prompt}
+        ])
+        
+        # Сохраняем начало в историю
+        session["content"].append({"role": "assistant", "content": bot_start})
+        update_story_session(chat_id, {"content": session["content"]})
+        
+        await callback.message.answer(bot_start)
+        await callback.message.answer("\nТеперь твоя очередь! Продолжи историю (2-3 предложения).")
+        logger.info(f"Bot started story for user {chat_id}")
 
 
 @commands_router.message(Command("help"))
@@ -43,56 +125,21 @@ async def help_handler(message: Message) -> None:
     """Обработчик команды /help"""
     chat_id = message.chat.id
     username = message.from_user.username or "unknown"
-    logger.info(f"Command: /help, chat_id={chat_id}, user={username}")
     
     help_text = (
-        "🤖 Я - ИИ-ассистент, готовый помочь вам!\n\n"
+        "🤖 Помощь по боту\n\n"
+        "Я помогаю детям сочинять истории! Мы пишем по очереди, "
+        "развивая сюжет вместе.\n\n"
         "Доступные команды:\n"
-        "/start - Начать диалог\n"
-        "/help - Показать эту справку\n"
-        "/clear - Очистить историю и сбросить промпт\n"
-        "/prompt - Показать текущий системный промпт\n"
-        "/setprompt <текст> - Установить новый системный промпт\n\n"
-        "Просто напишите мне свой вопрос, и я с удовольствием отвечу!"
+        "/start - Приветствие и описание\n"
+        "/new_story - Создать новую историю\n"
+        "/help - Эта справка\n\n"
+        "Как это работает:\n"
+        "1. Создай историю с помощью /new_story\n"
+        "2. Выбери жанр, длительность и имя героя\n"
+        "3. Мы по очереди пишем по 2-3 предложения\n"
+        "4. Когда история будет готова, я помогу её завершить\n\n"
+        "Удачи в творчестве! ✨"
     )
     await message.answer(help_text)
-
-
-@commands_router.message(Command("prompt"))
-async def prompt_handler(message: Message) -> None:
-    """Обработчик команды /prompt - показать текущий промпт"""
-    chat_id = message.chat.id
-    username = message.from_user.username or "unknown"
-    logger.info(f"Command: /prompt, chat_id={chat_id}, user={username}")
-    
-    current_prompt = get_system_prompt(chat_id)
-    
-    response = f"📝 Текущий системный промпт:\n\n{current_prompt}"
-    await message.answer(response)
-
-
-@commands_router.message(Command("setprompt"))
-async def setprompt_handler(message: Message) -> None:
-    """Обработчик команды /setprompt - установить новый промпт"""
-    chat_id = message.chat.id
-    username = message.from_user.username or "unknown"
-    logger.info(f"Command: /setprompt, chat_id={chat_id}, user={username}")
-    
-    command_text = message.text or ""
-    parts = command_text.split(maxsplit=1)
-    
-    if len(parts) < 2 or not parts[1].strip():
-        await message.answer(
-            "❌ Использование: /setprompt <новый промпт>\n\n"
-            "Пример: /setprompt Ты - дружелюбный помощник"
-        )
-        return
-    
-    new_prompt = parts[1].strip()
-    set_custom_prompt(chat_id, new_prompt)
-    
-    await message.answer(
-        "✅ Системный промпт обновлен!\n"
-        "История диалога очищена.\n\n"
-        "Используйте /prompt для просмотра текущего промпта."
-    )
+    logger.info(f"Command: /help, chat_id={chat_id}, user={username}")

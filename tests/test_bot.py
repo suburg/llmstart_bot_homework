@@ -1,81 +1,80 @@
 """Простые тесты основных функций бота"""
 import pytest
 from storage.memory import (
-    get_session,
-    add_message,
-    clear_session,
-    get_messages,
-    get_system_prompt,
-    set_custom_prompt,
-    reset_system_prompt,
+    get_story_session,
+    create_story_session,
+    update_story_session,
+    clear_story_session,
+    is_user_greeted,
+    mark_user_greeted,
 )
 
 
-def test_get_session_creates_new():
-    """Тест создания новой сессии"""
+def test_create_story_session():
+    """Тест создания новой сессии истории"""
     chat_id = 999999
-    session = get_session(chat_id)
+    session = create_story_session(chat_id, {})
     assert session is not None
-    assert len(session["messages"]) >= 1  # системный промпт
+    assert session["state"] == "choosing_genre"
+    assert session["content"] == []
+    assert session["is_greeted"] is True
 
 
-def test_add_message():
-    """Тест добавления сообщения"""
+def test_get_story_session():
+    """Тест получения сессии истории"""
     chat_id = 999998
-    add_message(chat_id, "user", "Тест")
-    messages = get_messages(chat_id)
-    assert any(m["content"] == "Тест" for m in messages)
+    create_story_session(chat_id, {"genre": "fairy_tale"})
+    session = get_story_session(chat_id)
+    assert session is not None
+    assert session["params"]["genre"] == "fairy_tale"
 
 
-def test_clear_session():
-    """Тест очистки сессии"""
+def test_update_story_session():
+    """Тест обновления сессии истории"""
     chat_id = 999997
-    add_message(chat_id, "user", "Сообщение 1")
-    add_message(chat_id, "assistant", "Ответ 1")
-    clear_session(chat_id)
-    messages = get_messages(chat_id)
-    assert len(messages) == 1  # только системный промпт
+    create_story_session(chat_id, {})
+    update_story_session(chat_id, {"state": "storytelling", "params": {"genre": "adventure"}})
+    session = get_story_session(chat_id)
+    assert session["state"] == "storytelling"
+    assert session["params"]["genre"] == "adventure"
 
 
-def test_get_system_prompt():
-    """Тест получения системного промпта"""
+def test_clear_story_session():
+    """Тест очистки сессии истории"""
     chat_id = 999996
-    prompt = get_system_prompt(chat_id)
-    assert prompt is not None
-    assert len(prompt) > 0
+    create_story_session(chat_id, {"genre": "detective"})
+    clear_story_session(chat_id)
+    session = get_story_session(chat_id)
+    assert session is None
 
 
-def test_set_custom_prompt():
-    """Тест установки кастомного промпта"""
+def test_is_user_greeted():
+    """Тест проверки приветствия пользователя"""
     chat_id = 999995
-    new_prompt = "Ты - тестовый ассистент"
-    set_custom_prompt(chat_id, new_prompt)
-    current_prompt = get_system_prompt(chat_id)
-    assert current_prompt == new_prompt
-    messages = get_messages(chat_id)
-    assert len(messages) == 1  # история очищена
+    assert is_user_greeted(chat_id) is False
+    mark_user_greeted(chat_id)
+    assert is_user_greeted(chat_id) is True
 
 
-def test_reset_system_prompt():
-    """Тест сброса системного промпта"""
+def test_mark_user_greeted():
+    """Тест отметки о приветствии"""
     chat_id = 999994
-    original_prompt = get_system_prompt(chat_id)
-    new_prompt = "Кастомный промпт для теста"
-    set_custom_prompt(chat_id, new_prompt)
-    assert get_system_prompt(chat_id) == new_prompt
-    reset_system_prompt(chat_id)
-    reset_prompt = get_system_prompt(chat_id)
-    assert reset_prompt == original_prompt
+    mark_user_greeted(chat_id)
+    assert is_user_greeted(chat_id) is True
 
 
-def test_clear_resets_custom_prompt():
-    """Тест что clear не сбрасывает кастомный промпт сам по себе"""
+def test_story_content_tracking():
+    """Тест отслеживания контента истории"""
     chat_id = 999993
-    new_prompt = "Кастомный промпт"
-    set_custom_prompt(chat_id, new_prompt)
-    add_message(chat_id, "user", "Тест")
-    clear_session(chat_id)
-    # После clear кастомный промпт сохраняется
-    assert get_system_prompt(chat_id) == new_prompt
-    messages = get_messages(chat_id)
-    assert len(messages) == 1
+    session = create_story_session(chat_id, {})
+    
+    # Добавляем контент
+    session["content"].append({"role": "user", "content": "Жил-был герой"})
+    session["content"].append({"role": "assistant", "content": "Он отправился в путешествие"})
+    update_story_session(chat_id, {"content": session["content"]})
+    
+    # Проверяем
+    updated_session = get_story_session(chat_id)
+    assert len(updated_session["content"]) == 2
+    assert updated_session["content"][0]["role"] == "user"
+    assert updated_session["content"][1]["role"] == "assistant"
