@@ -9,6 +9,7 @@ from story import manager
 from bot.keyboards import (
     get_genre_keyboard,
     get_duration_keyboard,
+    get_creativity_keyboard,
     get_who_starts_keyboard,
 )
 
@@ -76,6 +77,20 @@ async def process_duration_callback(callback: CallbackQuery) -> None:
     logger.info(f"User {chat_id} chose duration: {duration}")
 
 
+@commands_router.callback_query(F.data.startswith("creativity:"))
+async def process_creativity_callback(callback: CallbackQuery) -> None:
+    """Обработчик выбора уровня креативности"""
+    chat_id = callback.message.chat.id
+    creativity = callback.data.split(":")[1]
+    
+    response = manager.process_creativity_choice(chat_id, creativity)
+    keyboard = get_who_starts_keyboard()
+    
+    await callback.message.edit_text(response, reply_markup=keyboard)
+    await callback.answer()
+    logger.info(f"User {chat_id} chose creativity: {creativity}")
+
+
 @commands_router.callback_query(F.data.startswith("starts:"))
 async def process_who_starts_callback(callback: CallbackQuery) -> None:
     """Обработчик выбора кто начинает"""
@@ -91,7 +106,7 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
     
     # Если бот начинает - генерируем начало
     if need_bot_start:
-        from llm import client, prompts
+        from ai import llm, prompts
         
         session = get_story_session(chat_id)
         params = session["params"]
@@ -99,17 +114,27 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
         # Формируем промпт для начала истории
         genre_context = manager.get_genre_context(params["genre"])
         hero = params["main_hero"]
+        additional = params.get("additional_heroes")
         
         story_prompt = (
             f"Начни {genre_context} про главного героя по имени {hero}. "
-            f"Напиши только 2-3 первых предложения, которые заинтересуют ребенка."
         )
+        if additional:
+            story_prompt += f"Другие персонажи: {additional}. "
+        story_prompt += "Напиши только 2-3 первых предложения, которые заинтересуют ребенка."
+        
+        # Получаем температуру из параметров
+        creativity = params.get("creativity_level", "medium")
+        temperature = manager.get_temperature_for_creativity(creativity)
         
         system_prompt = prompts.load_system_prompt()
-        bot_start = await client.send_message([
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": story_prompt}
-        ])
+        bot_start = await llm.send_message(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": story_prompt}
+            ],
+            temperature=temperature
+        )
         
         # Сохраняем начало в историю
         session["content"].append({"role": "assistant", "content": bot_start})
@@ -124,7 +149,7 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
 async def handle_completion_choice(callback: CallbackQuery) -> None:
     """Обработка выбора завершения истории"""
     from storage.memory import clear_story_session
-    from llm import client, prompts
+    from ai import llm, prompts
     
     chat_id = callback.message.chat.id
     choice = callback.data.split(":")[1]
@@ -159,6 +184,10 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
             params = session["params"]
             genre_context = manager.get_genre_context(params["genre"])
             
+            # Получаем температуру из параметров
+            creativity = params.get("creativity_level", "medium")
+            temperature = manager.get_temperature_for_creativity(creativity)
+            
             system_prompt = prompts.load_system_prompt()
             messages = [{"role": "system", "content": system_prompt}]
             messages.append({
@@ -167,7 +196,7 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
             })
             messages.extend(session["content"])
             
-            bot_response = await client.send_message(messages)
+            bot_response = await llm.send_message(messages, temperature=temperature)
             session["content"].append({"role": "assistant", "content": bot_response})
             
             update_story_session(chat_id, {"state": "storytelling", "content": session["content"]})

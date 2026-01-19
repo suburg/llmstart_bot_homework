@@ -10,8 +10,8 @@ from storage.memory import (
     mark_user_greeted,
 )
 from story import manager
-from bot.keyboards import get_who_starts_keyboard
-from llm import client, prompts
+from bot.keyboards import get_who_starts_keyboard, get_creativity_keyboard
+from ai import llm, prompts
 
 logger = logging.getLogger(__name__)
 messages_router = Router()
@@ -44,12 +44,18 @@ async def message_handler(message: Message) -> None:
     
     state = session.get("state")
     
-    # Обработка ввода имени героя (единственный текстовый ввод в выборе параметров)
+    # Обработка ввода имени героя
     if state == "entering_hero_name":
         response = manager.process_hero_name(chat_id, text)
-        keyboard = get_who_starts_keyboard()
-        await message.answer(response, reply_markup=keyboard)
+        await message.answer(response)
         logger.info(f"User {chat_id} entered hero name: {text}")
+    
+    # Обработка ввода дополнительных персонажей
+    elif state == "entering_additional_heroes":
+        response = manager.process_additional_heroes(chat_id, text)
+        keyboard = get_creativity_keyboard()
+        await message.answer(response, reply_markup=keyboard)
+        logger.info(f"User {chat_id} entered additional heroes: {text}")
         
     elif state == "storytelling":
         # Добавляем сообщение пользователя
@@ -76,11 +82,18 @@ async def message_handler(message: Message) -> None:
         params = session["params"]
         genre_context = manager.get_genre_context(params["genre"])
         
+        # Получаем температуру из параметров
+        creativity = params.get("creativity_level", "medium")
+        temperature = manager.get_temperature_for_creativity(creativity)
+        
         system_prompt = prompts.load_system_prompt()
         messages = [{"role": "system", "content": system_prompt}]
         
         # Базовый контекст жанра и героя
         genre_instruction = f"Жанр истории: {genre_context}. Главный герой: {params['main_hero']}."
+        additional = params.get("additional_heroes")
+        if additional:
+            genre_instruction += f" Другие персонажи: {additional}."
         
         # Добавляем инструкцию для подведения к концу если близко
         ending_instruction = manager.get_ending_instruction(pairs_count, current_limit)
@@ -90,7 +103,7 @@ async def message_handler(message: Message) -> None:
         messages.append({"role": "system", "content": genre_instruction})
         messages.extend(session["content"])
         
-        bot_response = await client.send_message(messages)
+        bot_response = await llm.send_message(messages, temperature=temperature)
         
         # Сохраняем ответ бота
         session["content"].append({"role": "assistant", "content": bot_response})
@@ -107,6 +120,10 @@ async def message_handler(message: Message) -> None:
         params = session["params"]
         genre_context = manager.get_genre_context(params["genre"])
         
+        # Получаем температуру из параметров
+        creativity = params.get("creativity_level", "medium")
+        temperature = manager.get_temperature_for_creativity(creativity)
+        
         system_prompt = prompts.load_system_prompt()
         finale_instruction = (
             "Это финальное сообщение истории. "
@@ -119,7 +136,7 @@ async def message_handler(message: Message) -> None:
         ]
         messages.extend(session["content"])
         
-        bot_finale = await client.send_message(messages)
+        bot_finale = await llm.send_message(messages, temperature=temperature)
         session["content"].append({"role": "assistant", "content": bot_finale})
         update_story_session(chat_id, {"content": session["content"]})
         

@@ -1,7 +1,8 @@
 """Форматирование и финализация историй"""
 import logging
 from pathlib import Path
-from llm import client
+from ai import llm
+from story.manager import get_temperature_for_creativity
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +18,25 @@ async def finalize_story(content: list, params: dict) -> dict:
     
     genre = params.get("genre", "")
     hero = params.get("main_hero", "")
+    additional = params.get("additional_heroes")
     
     story_text = compile_story_text(content)
     
+    # Формируем контекст персонажей
+    hero_context = f"Главный герой: {hero}"
+    if additional:
+        hero_context += f"\nДругие персонажи: {additional}"
+    
     messages = [
         {"role": "system", "content": finalization_prompt},
-        {"role": "user", "content": f"Жанр: {genre}\nГерой: {hero}\n\nИстория:\n{story_text}"}
+        {"role": "user", "content": f"Жанр: {genre}\n{hero_context}\n\nИстория:\n{story_text}"}
     ]
     
-    response = await client.send_message(messages)
+    # Получаем температуру из параметров
+    creativity = params.get("creativity_level", "medium")
+    temperature = get_temperature_for_creativity(creativity)
+    
+    response = await llm.send_message(messages, temperature=temperature)
     
     title, final_text = parse_response(response, story_text)
     

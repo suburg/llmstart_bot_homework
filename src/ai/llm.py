@@ -12,13 +12,18 @@ def create_llm_client() -> AsyncOpenAI:
         api_key=config["llm_api_key"],
     )
 
-async def send_message(messages: list[dict[str, str]], model: str | None = None) -> str:
+async def send_message(
+    messages: list[dict[str, str]], 
+    model: str | None = None,
+    temperature: float = 0.7
+) -> str:
     """
-    Отправка сообщения в LLM через OpenRouter
+    Отправка сообщения в LLM
     
     Args:
         messages: Список сообщений в формате OpenAI API
         model: Модель для использования (если не указана - из config)
+        temperature: Температура генерации (креативность)
     
     Returns:
         Ответ от LLM
@@ -29,11 +34,15 @@ async def send_message(messages: list[dict[str, str]], model: str | None = None)
     client = create_llm_client()
     
     try:
-        logger.info(f"LLM Request: model={model}, messages_count={len(messages)}")
+        logger.info(
+            f"LLM Request: model={model}, temp={temperature}, "
+            f"messages_count={len(messages)}"
+        )
         
         response = await client.chat.completions.create(
             model=model,
             messages=messages,
+            temperature=temperature,
         )
         
         answer = response.choices[0].message.content

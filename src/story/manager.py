@@ -1,22 +1,60 @@
 """Управление процессом сочинения историй"""
+import json
 import logging
+from pathlib import Path
 from storage.memory import get_story_session, update_story_session
 
 logger = logging.getLogger(__name__)
-
-# Доступные жанры
-GENRES = {
-    "fairy_tale": "Сказка",
-    "adventure": "Приключение",
-    "fantasy": "Фэнтези",
-    "detective": "Детектив",
-}
 
 DURATIONS = {
     "short": "Короткая",
     "medium": "Средняя",
     "long": "Длинная",
 }
+
+
+def load_genres() -> dict:
+    """Загрузить справочник жанров из data/genres.json"""
+    genres_path = Path(__file__).parent.parent.parent / "data" / "genres.json"
+    
+    try:
+        with open(genres_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logger.error(f"Genres file not found: {genres_path}")
+        # Возвращаем базовые жанры если файл не найден
+        return {
+            "fairy_tale": {"name": "Сказка", "emoji": "📚", 
+                          "description": "Волшебные истории"},
+            "adventure": {"name": "Приключение", "emoji": "🗺",
+                         "description": "Захватывающие путешествия"},
+            "fantasy": {"name": "Фэнтези", "emoji": "🐉",
+                       "description": "Магия и волшебство"},
+            "detective": {"name": "Детектив", "emoji": "🔍",
+                         "description": "Расследования и тайны"},
+        }
+
+
+def format_genres_info() -> str:
+    """Форматировать информацию о жанрах для вывода"""
+    genres = load_genres()
+    lines = ["Выбери жанр для своей истории:\n"]
+    
+    for genre_id, info in genres.items():
+        emoji = info.get("emoji", "📖")
+        name = info["name"]
+        desc = info["description"]
+        refs = info.get("references", [])
+        
+        lines.append(f"{emoji} **{name}**")
+        lines.append(f"   {desc}")
+        if refs:
+            refs_str = ", ".join(refs[:3])  # Первые 3 референса
+            lines.append(f"   _Например: {refs_str}_\n")
+        else:
+            lines.append("")
+    
+    return "\n".join(lines)
 
 
 def start_story_creation(chat_id: int) -> str:
@@ -26,12 +64,15 @@ def start_story_creation(chat_id: int) -> str:
     create_story_session(chat_id, {})
     update_story_session(chat_id, {"state": "choosing_genre", "current_limit": None})
     
-    return "Давай создадим новую историю! 📖\n\nВыбери жанр:"
+    # Возвращаем форматированную информацию о жанрах
+    return "Давай создадим новую историю! 📖\n\n" + format_genres_info()
 
 
 def process_genre_choice(chat_id: int, genre: str) -> str:
     """Обработать выбор жанра"""
-    genre_name = GENRES.get(genre, "неизвестный жанр")
+    genres = load_genres()
+    genre_info = genres.get(genre, {"name": "неизвестный жанр", "emoji": "📖"})
+    genre_name = genre_info["name"]
     
     update_story_session(chat_id, {
         "params": {"genre": genre},
@@ -67,15 +108,56 @@ def process_duration_choice(chat_id: int, duration: str) -> str:
 
 
 def process_hero_name(chat_id: int, name: str) -> str:
-    """Обработать имя героя"""
+    """Обработать имя главного героя"""
     session = get_story_session(chat_id)
     session["params"]["main_hero"] = name.strip()
+    update_story_session(chat_id, {
+        "params": session["params"],
+        "state": "entering_additional_heroes"
+    })
+    
+    return (
+        f"Отлично! Главный герой — {name} 🦸\n\n"
+        f"Хочешь добавить других персонажей?\n"
+        f"Напиши их имена или отправь '-' чтобы пропустить."
+    )
+
+
+def process_additional_heroes(chat_id: int, text: str) -> str:
+    """Обработать ввод дополнительных персонажей"""
+    session = get_story_session(chat_id)
+    
+    # Если пользователь написал "нет" или "-" - пропускаем
+    if text.lower().strip() in ["нет", "нет, спасибо", "-", "skip"]:
+        session["params"]["additional_heroes"] = None
+    else:
+        session["params"]["additional_heroes"] = text.strip()
+    
+    update_story_session(chat_id, {
+        "params": session["params"],
+        "state": "choosing_creativity"
+    })
+    
+    return "Отлично! 🎨\n\nТеперь выбери уровень креативности:"
+
+
+def process_creativity_choice(chat_id: int, creativity: str) -> str:
+    """Обработать выбор уровня креативности"""
+    session = get_story_session(chat_id)
+    session["params"]["creativity_level"] = creativity
+    
+    creativity_names = {
+        "low": "Спокойная",
+        "medium": "Обычная", 
+        "high": "Очень креативная"
+    }
+    
     update_story_session(chat_id, {
         "params": session["params"],
         "state": "choosing_who_starts"
     })
     
-    return f"Отлично! Главный герой — {name} 🦸\n\nКто начнёт историю?"
+    return f"Замечательно! Креативность: {creativity_names.get(creativity, 'Обычная')} ✨\n\nКто начнёт историю?"
 
 
 def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
@@ -99,13 +181,33 @@ def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
 
 def get_genre_context(genre: str) -> str:
     """Получить контекст жанра для промпта"""
+    genres = load_genres()
+    genre_info = genres.get(genre)
+    
+    if genre_info:
+        return f"{genre_info['name'].lower()} - {genre_info['description'].lower()}"
+    
+    # Fallback на старые значения
     contexts = {
         "fairy_tale": "волшебная сказка с добрыми и злыми персонажами",
         "adventure": "захватывающее приключение с путешествиями",
         "fantasy": "фэнтези с магией и необычными существами",
         "detective": "детектив с расследованием и загадками",
+        "sci_fi": "научная фантастика о будущем и технологиях",
     }
     return contexts.get(genre, "интересная история")
+
+
+def get_temperature_for_creativity(creativity: str) -> float:
+    """Получить температуру для LLM по уровню креативности"""
+    from config import config
+    
+    temps = {
+        "low": config["creativity_low"],
+        "medium": config["creativity_medium"],
+        "high": config["creativity_high"],
+    }
+    return temps.get(creativity, 0.7)
 
 
 def count_message_pairs(content: list) -> int:
