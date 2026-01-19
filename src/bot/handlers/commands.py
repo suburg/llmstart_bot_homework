@@ -120,6 +120,75 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
         logger.info(f"Bot started story for user {chat_id}")
 
 
+@commands_router.callback_query(F.data.startswith("complete:"))
+async def handle_completion_choice(callback: CallbackQuery) -> None:
+    """Обработка выбора завершения истории"""
+    from storage.memory import clear_story_session
+    from llm import client, prompts
+    
+    chat_id = callback.message.chat.id
+    choice = callback.data.split(":")[1]
+    
+    session = get_story_session(chat_id)
+    
+    if not session:
+        await callback.answer("Сессия истекла")
+        return
+    
+    if choice == "yes":
+        # Переходим в режим написания финала
+        update_story_session(chat_id, {"state": "writing_finale"})
+        
+        hero_name = session["params"].get("main_hero", "герой")
+        await callback.message.edit_text(
+            "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+        )
+        await callback.message.answer(
+            f"Отлично! 📝✨\n\n"
+            f"Теперь напиши финал истории — как всё закончилось для {hero_name}?"
+        )
+        
+        logger.info(f"User {chat_id} will write finale")
+        
+    else:
+        # Продолжаем историю - увеличиваем лимит на 3 пары
+        manager.extend_story_limit(chat_id)
+        
+        # Генерируем ответ бота на последнее сообщение
+        if session["content"] and session["content"][-1]["role"] == "user":
+            params = session["params"]
+            genre_context = manager.get_genre_context(params["genre"])
+            
+            system_prompt = prompts.load_system_prompt()
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.append({
+                "role": "system",
+                "content": f"Жанр: {genre_context}. Герой: {params['main_hero']}."
+            })
+            messages.extend(session["content"])
+            
+            bot_response = await client.send_message(messages)
+            session["content"].append({"role": "assistant", "content": bot_response})
+            
+            update_story_session(chat_id, {"state": "storytelling", "content": session["content"]})
+            
+            await callback.message.edit_text(
+                "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+            )
+            await callback.message.answer(bot_response)
+            await callback.message.answer("Продолжай историю дальше! ✍️")
+            
+            logger.info(f"User {chat_id} chose to continue story")
+        else:
+            update_story_session(chat_id, {"state": "storytelling"})
+            await callback.message.edit_text(
+                "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+            )
+            await callback.message.answer("Хорошо! Продолжай историю! ✍️")
+    
+    await callback.answer()
+
+
 @commands_router.message(Command("help"))
 async def help_handler(message: Message) -> None:
     """Обработчик команды /help"""

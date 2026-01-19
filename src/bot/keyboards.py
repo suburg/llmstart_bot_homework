@@ -30,3 +30,12 @@ def get_who_starts_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="✍️ Ты начнёшь (я)", callback_data="starts:user")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_completion_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура предложения завершить историю"""
+    buttons = [
+        [InlineKeyboardButton(text="✅ Завершить историю", callback_data="complete:yes")],
+        [InlineKeyboardButton(text="✍️ Написать ещё", callback_data="complete:no")],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

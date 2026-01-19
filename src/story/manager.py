@@ -24,7 +24,7 @@ def start_story_creation(chat_id: int) -> str:
     from storage.memory import create_story_session
     
     create_story_session(chat_id, {})
-    update_story_session(chat_id, {"state": "choosing_genre"})
+    update_story_session(chat_id, {"state": "choosing_genre", "current_limit": None})
     
     return "Давай создадим новую историю! 📖\n\nВыбери жанр:"
 
@@ -43,13 +43,24 @@ def process_genre_choice(chat_id: int, genre: str) -> str:
 
 def process_duration_choice(chat_id: int, duration: str) -> str:
     """Обработать выбор длительности"""
+    from config import config
+    
     duration_name = DURATIONS.get(duration, "неизвестная длительность")
+    
+    # Устанавливаем начальный лимит по выбранной длительности
+    limits = {
+        "short": config["max_pairs_short"],
+        "medium": config["max_pairs_medium"],
+        "long": config["max_pairs_long"],
+    }
+    initial_limit = limits.get(duration, 10)
     
     session = get_story_session(chat_id)
     session["params"]["duration"] = duration
     update_story_session(chat_id, {
         "params": session["params"],
-        "state": "entering_hero_name"
+        "state": "entering_hero_name",
+        "current_limit": initial_limit
     })
     
     return f"Замечательно! Длительность: {duration_name} 📝\n\nТеперь напиши имя главного героя твоей истории:"
@@ -95,3 +106,46 @@ def get_genre_context(genre: str) -> str:
         "detective": "детектив с расследованием и загадками",
     }
     return contexts.get(genre, "интересная история")
+
+
+def count_message_pairs(content: list) -> int:
+    """Подсчет пар сообщений (user + assistant = 1 пара)"""
+    return len(content) // 2
+
+
+def should_offer_completion(pairs_count: int, current_limit: int) -> bool:
+    """Нужно ли предложить завершение истории"""
+    # Предлагаем ровно по достижении текущего лимита
+    return pairs_count >= current_limit
+
+
+def extend_story_limit(chat_id: int) -> None:
+    """Увеличить лимит истории на 3 пары"""
+    session = get_story_session(chat_id)
+    if session and "current_limit" in session:
+        session["current_limit"] += 3
+        update_story_session(chat_id, {"current_limit": session["current_limit"]})
+        logger.info(f"Extended story limit for {chat_id} to {session['current_limit']}")
+
+
+def get_ending_instruction(pairs_count: int, current_limit: int) -> str:
+    """Получить инструкцию для подведения к концу истории"""
+    remaining = current_limit - pairs_count
+    
+    if remaining == 1:
+        # За 1 пару до конца - явно подводим к завершению
+        return (
+            "ВАЖНО: История подходит к концу! "
+            "НЕ вводи новых персонажей, конфликтов или обстоятельств. "
+            "Подведи текущий сюжет к логическому завершению. "
+            "Пиши так, чтобы история могла закончиться в следующем сообщении."
+        )
+    elif remaining == 2:
+        # За 2 пары до конца - начинаем сворачивать сюжет
+        return (
+            "ВАЖНО: История приближается к концу. "
+            "НЕ вводи ничего нового. "
+            "Начинай разрешать конфликты и подводить сюжет к завершению."
+        )
+    
+    return ""
