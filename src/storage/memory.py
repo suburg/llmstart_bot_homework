@@ -12,17 +12,18 @@ def get_story_session(chat_id: int) -> dict | None:
     return _sessions.get(chat_id)
 
 
-def create_story_session(chat_id: int, params: dict) -> dict:
+def create_story_session(chat_id: int, params: dict, story_id: int = None) -> dict:
     """Создать новую сессию истории"""
     session = {
         "chat_id": chat_id,
+        "story_id": story_id,  # ID истории в БД
         "state": "choosing_genre",
         "params": params,
         "content": [],
         "is_greeted": True
     }
     _sessions[chat_id] = session
-    logger.info(f"Created story session for chat_id: {chat_id}")
+    logger.info(f"Created story session for chat_id: {chat_id}, story_id: {story_id}")
     return session
 
 

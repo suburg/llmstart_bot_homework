@@ -7,9 +7,10 @@ from story.manager import get_temperature_for_creativity
 logger = logging.getLogger(__name__)
 
 
-async def finalize_story(content: list, params: dict) -> dict:
+async def finalize_story(content: list, params: dict, story_id: int = None) -> dict:
     """
     Финализировать историю: генерация названия и финального текста
+    Сохраняет результат в БД если передан story_id
     
     Returns:
         {"title": "...", "final_text": "..."}
@@ -40,7 +41,13 @@ async def finalize_story(content: list, params: dict) -> dict:
     
     title, final_text = parse_response(response, story_text)
     
-    logger.info(f"Story finalized: title='{title}', length={len(final_text)}")
+    # Сохраняем в БД если есть story_id
+    if story_id:
+        from storage import database
+        database.complete_story(story_id, title, final_text)
+        logger.info(f"Story {story_id} completed and saved to DB: title='{title}'")
+    else:
+        logger.info(f"Story finalized: title='{title}', length={len(final_text)}")
     
     return {
         "title": title,

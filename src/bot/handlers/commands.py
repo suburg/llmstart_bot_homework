@@ -43,10 +43,10 @@ async def new_story_handler(message: Message) -> None:
     chat_id = message.chat.id
     username = message.from_user.username or "unknown"
     
-    response = manager.start_story_creation(chat_id)
+    response, had_active = manager.start_story_creation(chat_id)
     keyboard = get_genre_keyboard()
     await message.answer(response, reply_markup=keyboard)
-    logger.info(f"Command: /new_story, chat_id={chat_id}, user={username}")
+    logger.info(f"Command: /new_story, chat_id={chat_id}, user={username}, abandoned_old={had_active}")
 
 
 @commands_router.callback_query(F.data.startswith("genre:"))
@@ -107,6 +107,7 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
     # Если бот начинает - генерируем начало
     if need_bot_start:
         from ai import llm, prompts
+        from storage import database
         
         session = get_story_session(chat_id)
         params = session["params"]
@@ -139,6 +140,10 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
         # Сохраняем начало в историю
         session["content"].append({"role": "assistant", "content": bot_start})
         update_story_session(chat_id, {"content": session["content"]})
+        
+        # Сохраняем в БД
+        if session.get("story_id"):
+            database.update_story_content(session["story_id"], session["content"])
         
         await callback.message.answer(bot_start)
         await callback.message.answer("\nТеперь твоя очередь! Продолжи историю (2-3 предложения).")
@@ -177,6 +182,8 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
         
     else:
         # Продолжаем историю - увеличиваем лимит на 3 пары
+        from storage import database
+        
         manager.extend_story_limit(chat_id)
         
         # Генерируем ответ бота на последнее сообщение
@@ -201,6 +208,10 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
             
             update_story_session(chat_id, {"state": "storytelling", "content": session["content"]})
             
+            # Сохраняем в БД
+            if session.get("story_id"):
+                database.update_story_content(session["story_id"], session["content"])
+            
             await callback.message.edit_text(
                 "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
             )
@@ -218,6 +229,100 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
     await callback.answer()
 
 
+@commands_router.message(Command("my_stories"))
+async def my_stories_handler(message: Message) -> None:
+    """Обработчик команды /my_stories - показать список историй"""
+    from storage import database
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    
+    chat_id = message.chat.id
+    username = message.from_user.username or "unknown"
+    
+    stories = database.get_user_stories(chat_id)
+    
+    if not stories:
+        await message.answer("У тебя пока нет сохранённых историй. Создай новую: /new_story")
+        logger.info(f"Command: /my_stories, chat_id={chat_id}, no stories")
+        return
+    
+    # Формируем список с inline-кнопками
+    text = "📚 Твои истории:\n\n"
+    keyboard = InlineKeyboardBuilder()
+    
+    genres = manager.load_genres()
+    
+    for story in stories:
+        status_emoji = "✅" if story["status"] == "completed" else ("⚠️" if story["status"] == "abandoned" else "✍️")
+        title = story.get("title") or f"История #{story['id']}"
+        genre_info = genres.get(story["genre"], {})
+        genre_name = genre_info.get("name", story["genre"])
+        
+        text += f"{status_emoji} **{title}**\n"
+        text += f"   Жанр: {genre_name}, Герой: {story['main_hero']}\n\n"
+        
+        # Ограничиваем длину названия для кнопки
+        button_title = title[:30] + "..." if len(title) > 30 else title
+        keyboard.button(
+            text=f"{status_emoji} {button_title}",
+            callback_data=f"view_story:{story['id']}"
+        )
+    
+    keyboard.adjust(1)
+    await message.answer(text, reply_markup=keyboard.as_markup(), parse_mode="Markdown")
+    logger.info(f"Command: /my_stories, chat_id={chat_id}, user={username}, stories={len(stories)}")
+
+
+@commands_router.callback_query(F.data.startswith("view_story:"))
+async def view_story_callback(callback: CallbackQuery) -> None:
+    """Обработчик просмотра истории"""
+    from storage import database
+    import json
+    
+    story_id = int(callback.data.split(":")[1])
+    story = database.get_story_by_id(story_id)
+    
+    if not story:
+        await callback.answer("История не найдена")
+        return
+    
+    genres = manager.load_genres()
+    genre_info = genres.get(story["genre"], {})
+    genre_name = genre_info.get("name", story["genre"])
+    
+    # Формируем сообщение
+    if story["status"] == "completed":
+        # Показываем финальную версию
+        text = f"📖 **{story['title']}**\n\n"
+        text += f"Жанр: {genre_name}\n"
+        text += f"Герой: {story['main_hero']}\n\n"
+        text += story["final_text"]
+    else:
+        # Показываем процесс сочинения
+        title = story.get("title") or f"История #{story['id']}"
+        text = f"📝 **{title}**\n\n"
+        text += f"Статус: {'✍️ В процессе' if story['status'] == 'in_progress' else '⚠️ Не завершена'}\n"
+        text += f"Жанр: {genre_name}\n"
+        text += f"Герой: {story['main_hero']}\n\n"
+        
+        # Показываем процесс сочинения
+        content = json.loads(story.get("content", "[]"))
+        if content:
+            text += "**Процесс сочинения:**\n\n"
+            for msg in content[:10]:  # Первые 10 сообщений
+                role_emoji = "👤" if msg["role"] == "user" else "🤖"
+                text += f"{role_emoji} {msg['content']}\n\n"
+            
+            if len(content) > 10:
+                text += f"... ещё {len(content) - 10} сообщений\n\n"
+        
+        if story["status"] == "in_progress":
+            text += "✍️ Продолжай писать историю!"
+    
+    await callback.message.answer(text, parse_mode="Markdown")
+    await callback.answer()
+    logger.info(f"User {callback.message.chat.id} viewed story {story_id}")
+
+
 @commands_router.message(Command("help"))
 async def help_handler(message: Message) -> None:
     """Обработчик команды /help"""
@@ -231,6 +336,7 @@ async def help_handler(message: Message) -> None:
         "Доступные команды:\n"
         "/start - Приветствие и описание\n"
         "/new_story - Создать новую историю\n"
+        "/my_stories - Посмотреть свои истории\n"
         "/help - Эта справка\n\n"
         "Как это работает:\n"
         "1. Создай историю с помощью /new_story\n"

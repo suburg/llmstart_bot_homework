@@ -1,8 +1,12 @@
-.PHONY: install run start stop status clean test docker-build docker-deploy docker-stop docker-logs
+.PHONY: install init-db run start stop status clean test docker-build docker-deploy docker-stop docker-logs
 
 # Установка зависимостей через uv
 install:
 	uv sync
+
+# Инициализация базы данных
+init-db:
+	uv run python -c "from src.storage.database import init_database; init_database(); print('Database initialized successfully')"
 
 # Запуск бота в текущем терминале (для разработки)
 run:

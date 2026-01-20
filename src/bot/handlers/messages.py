@@ -62,6 +62,11 @@ async def message_handler(message: Message) -> None:
         session["content"].append({"role": "user", "content": text})
         update_story_session(chat_id, {"content": session["content"]})
         
+        # Сохраняем в БД
+        from storage import database
+        if session.get("story_id"):
+            database.update_story_content(session["story_id"], session["content"])
+        
         # Проверяем нужно ли предложить завершение ПЕРЕД генерацией ответа бота
         pairs_count = manager.count_message_pairs(session["content"])
         current_limit = session.get("current_limit", 10)
@@ -109,12 +114,21 @@ async def message_handler(message: Message) -> None:
         session["content"].append({"role": "assistant", "content": bot_response})
         update_story_session(chat_id, {"content": session["content"]})
         
+        # Сохраняем в БД
+        if session.get("story_id"):
+            database.update_story_content(session["story_id"], session["content"])
+        
         await message.answer(bot_response)
         logger.info(f"Story continues for user {chat_id}, pairs: {len(session['content'])//2}")
     
     elif state == "writing_finale":
         # Ребенок написал финал истории
         session["content"].append({"role": "user", "content": text})
+        
+        # Сохраняем в БД
+        from storage import database
+        if session.get("story_id"):
+            database.update_story_content(session["story_id"], session["content"])
         
         # Генерируем короткий завершающий ответ от бота
         params = session["params"]
@@ -140,6 +154,10 @@ async def message_handler(message: Message) -> None:
         session["content"].append({"role": "assistant", "content": bot_finale})
         update_story_session(chat_id, {"content": session["content"]})
         
+        # Сохраняем в БД
+        if session.get("story_id"):
+            database.update_story_content(session["story_id"], session["content"])
+        
         await message.answer(bot_finale)
         await message.answer("Готовлю финальную версию истории... ✨")
         
@@ -147,7 +165,8 @@ async def message_handler(message: Message) -> None:
         from story import formatter
         result = await formatter.finalize_story(
             session["content"],
-            session["params"]
+            session["params"],
+            session.get("story_id")  # Передаем story_id для сохранения в БД
         )
         
         # Отправляем результат

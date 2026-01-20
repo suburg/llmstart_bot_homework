@@ -57,15 +57,33 @@ def format_genres_info() -> str:
     return "\n".join(lines)
 
 
-def start_story_creation(chat_id: int) -> str:
-    """Начать создание новой истории"""
+def start_story_creation(chat_id: int) -> tuple[str, bool]:
+    """
+    Начать создание новой истории
+    Возвращает: (текст сообщения, была_ли_заброшена_старая_история)
+    """
     from storage.memory import create_story_session
+    from storage import database
+    
+    # Проверяем есть ли активная история
+    active_story = database.get_active_story(chat_id)
+    had_active = False
+    
+    if active_story:
+        database.abandon_story(active_story["id"])
+        had_active = True
+        logger.info(f"Abandoned story {active_story['id']} for user {chat_id}")
     
     create_story_session(chat_id, {})
     update_story_session(chat_id, {"state": "choosing_genre", "current_limit": None})
     
-    # Возвращаем форматированную информацию о жанрах
-    return "Давай создадим новую историю! 📖\n\n" + format_genres_info()
+    message = ""
+    if had_active:
+        message = "⚠️ Твоя незавершённая история сохранена. Её можно найти в /my_stories\n\n"
+    
+    message += "Давай создадим новую историю! 📖\n\n" + format_genres_info()
+    
+    return message, had_active
 
 
 def process_genre_choice(chat_id: int, genre: str) -> str:
@@ -163,11 +181,28 @@ def process_creativity_choice(chat_id: int, creativity: str) -> str:
 def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
     """
     Обработать выбор кто начинает
-    Возвращает: (текст ответа, нужна_ли_генерация_начала_от_бота)
+    Создает историю в БД и возвращает: (текст ответа, нужна_ли_генерация_начала_от_бота)
     """
+    from storage import database, models
+    
     session = get_story_session(chat_id)
     session["params"]["who_starts"] = who
+    
+    # Создаем историю в БД
+    story_data = models.create_story_dict(
+        user_id=chat_id,
+        genre=session["params"]["genre"],
+        duration=session["params"]["duration"],
+        main_hero=session["params"]["main_hero"],
+        who_starts=who,
+        creativity_level=session["params"]["creativity_level"],
+        additional_heroes=session["params"].get("additional_heroes")
+    )
+    
+    story_id = database.create_story(story_data)
+    
     update_story_session(chat_id, {
+        "story_id": story_id,
         "params": session["params"],
         "state": "storytelling"
     })

@@ -9,6 +9,9 @@ config = {
     "llm_base_url": getenv("LLM_BASE_URL"),
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
     
+    # База данных
+    "db_path": getenv("DB_PATH", "data/stories.db"),
+    
     # Настройки историй (пары сообщений)
     "max_pairs_short": int(getenv("MAX_PAIRS_SHORT", "5")),
     "max_pairs_medium": int(getenv("MAX_PAIRS_MEDIUM", "10")),
