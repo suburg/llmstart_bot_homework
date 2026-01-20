@@ -4,21 +4,34 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def load_system_prompt() -> str:
-    """Загрузить системный промпт из файла"""
-    prompt_path = Path(__file__).parent.parent / "prompts" / "system.txt"
+def load_prompt(filename: str) -> str:
+    """
+    Загрузить промпт из файла
+    
+    Args:
+        filename: Имя файла промпта (например, "system.txt" или "cover_generation.txt")
+    
+    Returns:
+        Содержимое промпта
+    """
+    prompt_path = Path(__file__).parent.parent / "prompts" / filename
     
     try:
         with open(prompt_path, "r", encoding="utf-8") as f:
-            prompt = f.read().strip()
-        logger.info(f"Loaded system prompt: {len(prompt)} chars")
-        return prompt
+            return f.read().strip()
     except FileNotFoundError:
-        logger.error(f"System prompt file not found: {prompt_path}")
+        logger.error(f"Prompt file not found: {prompt_path}")
         raise
     except Exception as e:
-        logger.error(f"Error loading system prompt: {e}")
+        logger.error(f"Error loading prompt {filename}: {e}")
         raise
+
+
+def load_system_prompt() -> str:
+    """Загрузить системный промпт из файла"""
+    prompt = load_prompt("system.txt")
+    logger.info(f"Loaded system prompt: {len(prompt)} chars")
+    return prompt
 
 
 def get_current_system_prompt(chat_id: int) -> str:

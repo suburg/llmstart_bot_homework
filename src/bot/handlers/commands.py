@@ -97,7 +97,12 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
     chat_id = callback.message.chat.id
     who = callback.data.split(":")[1]
     
-    response, need_bot_start = manager.process_who_starts(chat_id, who)
+    # Получаем имя пользователя из Telegram
+    first_name = callback.from_user.first_name or ""
+    last_name = callback.from_user.last_name or ""
+    author_name = f"{first_name} {last_name}".strip() or "Юный писатель"
+    
+    response, need_bot_start = manager.process_who_starts(chat_id, who, author_name)
     
     # Убираем кнопки
     await callback.message.edit_text(response)

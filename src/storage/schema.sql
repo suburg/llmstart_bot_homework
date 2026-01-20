@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS stories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,                    -- Telegram user ID (chat_id)
+    author_name TEXT,                             -- Имя автора (first_name + last_name из Telegram)
     title TEXT,                                   -- Название истории (генерируется после завершения)
     genre TEXT NOT NULL,                          -- Жанр истории
     duration TEXT NOT NULL                        -- Длительность: 'short', 'medium', 'long'

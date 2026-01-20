@@ -16,6 +16,11 @@ config = {
     "speech_base_url": getenv("SPEECH_BASE_URL"),
     "speech_model": getenv("SPEECH_MODEL", "whisper-1"),
     
+    # Image Generation API (polza.ai seedream-v4)
+    "image_gen_api_key": getenv("IMAGE_GEN_API_KEY"),
+    "image_gen_base_url": getenv("IMAGE_GEN_BASE_URL", "https://api.polza.ai/api/v1"),
+    "image_gen_model": getenv("IMAGE_GEN_MODEL", "seedream-v4"),
+    
     # База данных
     "db_path": getenv("DB_PATH", "data/stories.db"),
     

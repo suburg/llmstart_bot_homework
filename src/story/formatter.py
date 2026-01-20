@@ -9,11 +9,11 @@ logger = logging.getLogger(__name__)
 
 async def finalize_story(content: list, params: dict, story_id: int = None) -> dict:
     """
-    Финализировать историю: генерация названия, финального текста и похвалы
+    Финализировать историю: генерация названия, финального текста, обложки и похвалы
     Сохраняет результат в БД если передан story_id
     
     Returns:
-        {"title": "...", "final_text": "...", "praise": "..."}
+        {"title": "...", "final_text": "...", "praise": "...", "cover_url": "..."}
     """
     finalization_prompt = load_finalization_prompt()
     
@@ -44,18 +44,25 @@ async def finalize_story(content: list, params: dict, story_id: int = None) -> d
     # Генерируем персональную похвалу
     praise = await llm.generate_praise(content, params)
     
+    # Генерируем обложку (с graceful fallback)
+    cover_url = None
+    if story_id:
+        cover_url = await generate_cover_safe(story_id, title, final_text, params)
+    
     # Сохраняем в БД если есть story_id
     if story_id:
         from src.storage import database
-        database.complete_story(story_id, title, final_text, praise)
-        logger.info(f"Story {story_id} completed and saved to DB: title='{title}'")
+        database.complete_story(story_id, title, final_text, praise, cover_url)
+        cover_status = f"with cover ({cover_url})" if cover_url else "no cover"
+        logger.info(f"Story {story_id} completed: title='{title}', {cover_status}")
     else:
         logger.info(f"Story finalized: title='{title}', length={len(final_text)}")
     
     return {
         "title": title,
         "final_text": final_text,
-        "praise": praise
+        "praise": praise,
+        "cover_url": cover_url
     }
 
 
@@ -117,3 +124,68 @@ def get_fallback_prompt() -> str:
         "НАЗВАНИЕ: [название]\n\n"
         "ТЕКСТ:\n[текст]"
     )
+
+
+async def generate_cover_safe(
+    story_id: int,
+    title: str,
+    final_text: str,
+    params: dict
+) -> str:
+    """Генерация обложки с graceful fallback"""
+    from src.config import config
+    from src.ai import image_gen
+    from src.storage import database
+    
+    # Проверяем наличие API ключа
+    if not config.get("image_gen_api_key"):
+        logger.warning("IMAGE_GEN_API_KEY not set, skipping cover generation")
+        return None
+    
+    try:
+        # Получаем референсы жанра
+        genre_id = params.get("genre", "")
+        references = get_genre_references(genre_id)
+        
+        # Получаем имя автора из БД
+        story = database.get_story_by_id(story_id)
+        author_name = story.get("author_name") or "Юный писатель"
+        
+        # Создаем краткое содержание (первые 200 символов)
+        story_preview = final_text[:200].strip()
+        if len(final_text) > 200:
+            story_preview += "..."
+        
+        cover_url = await image_gen.generate_cover(
+            story_id=story_id,
+            title=title,
+            genre=params.get("genre", ""),
+            main_hero=params.get("main_hero", ""),
+            author_name=author_name,
+            story_preview=story_preview,
+            references=references
+        )
+        
+        return cover_url
+        
+    except Exception as e:
+        logger.error(f"Failed to generate cover for story {story_id}: {e}")
+        return None
+
+
+def get_genre_references(genre_id: str) -> list[str]:
+    """Получить референсы жанра из genres.json"""
+    import json
+    
+    genres_path = Path(__file__).parent.parent.parent / "data" / "genres.json"
+    
+    try:
+        with open(genres_path, "r", encoding="utf-8") as f:
+            genres = json.load(f)
+        
+        genre_data = genres.get(genre_id, {})
+        return genre_data.get("references", [])
+        
+    except Exception as e:
+        logger.error(f"Failed to load genre references: {e}")
+        return []

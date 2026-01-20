@@ -198,18 +198,28 @@ async def process_text_input(chat_id: int, text: str, message: Message) -> None:
             session.get("story_id")  # Передаем story_id для сохранения в БД
         )
         
-        # Отправляем результат
-        final_message = (
-            f"🎉 **{result['title']}**\n\n"
-            f"{result['final_text']}\n\n"
-        )
+        # Отправляем название
+        await message.answer(f"📖 <b>{result['title']}</b>", parse_mode="HTML")
         
-        await message.answer(final_message, parse_mode="Markdown")
+        # Отправляем обложку если есть
+        if result.get("cover_url"):
+            from pathlib import Path
+            from aiogram.types import FSInputFile
+            
+            cover_path = Path(result["cover_url"])
+            if cover_path.exists():
+                photo = FSInputFile(cover_path)
+                await message.answer_photo(photo)
+            else:
+                logger.warning(f"Cover file not found: {result['cover_url']}")
+        
+        # Отправляем финальный текст
+        await message.answer(result["final_text"])
         
         # Отправляем похвалу отдельным сообщением
         if result.get("praise"):
-            praise_message = f"✨ **Отличная работа!**\n\n{result['praise']}"
-            await message.answer(praise_message, parse_mode="Markdown")
+            praise_message = f"✨ <b>Отличная работа!</b> ✨\n\n{result['praise']}"
+            await message.answer(praise_message, parse_mode="HTML")
         
         # Очищаем сессию
         from src.storage.memory import clear_story_session

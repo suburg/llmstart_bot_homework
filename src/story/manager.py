@@ -178,7 +178,7 @@ def process_creativity_choice(chat_id: int, creativity: str) -> str:
     return f"Замечательно! Креативность: {creativity_names.get(creativity, 'Обычная')} ✨\n\nКто начнёт историю?"
 
 
-def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
+def process_who_starts(chat_id: int, who: str, author_name: str = None) -> tuple[str, bool]:
     """
     Обработать выбор кто начинает
     Создает историю в БД и возвращает: (текст ответа, нужна_ли_генерация_начала_от_бота)
@@ -191,6 +191,7 @@ def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
     # Создаем историю в БД
     story_data = models.create_story_dict(
         user_id=chat_id,
+        author_name=author_name,
         genre=session["params"]["genre"],
         duration=session["params"]["duration"],
         main_hero=session["params"]["main_hero"],

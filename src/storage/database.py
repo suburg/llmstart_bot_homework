@@ -33,6 +33,25 @@ def init_database() -> None:
     conn.commit()
     conn.close()
     logger.info("Database initialized")
+    
+    # Применяем миграции для существующих БД
+    migrate_add_author_name()
+
+
+def migrate_add_author_name() -> None:
+    """Добавить колонку author_name если её нет"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("PRAGMA table_info(stories)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    if "author_name" not in columns:
+        cursor.execute("ALTER TABLE stories ADD COLUMN author_name TEXT")
+        conn.commit()
+        logger.info("Migration: added author_name column to stories table")
+    
+    conn.close()
 
 
 def create_story(story_data: dict) -> int:
@@ -41,11 +60,12 @@ def create_story(story_data: dict) -> int:
     cursor = conn.cursor()
     
     cursor.execute("""
-        INSERT INTO stories (user_id, genre, duration, main_hero, additional_heroes,
+        INSERT INTO stories (user_id, author_name, genre, duration, main_hero, additional_heroes,
                            who_starts, creativity_level, status, content)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         story_data["user_id"],
+        story_data.get("author_name"),
         story_data["genre"],
         story_data["duration"],
         story_data["main_hero"],
@@ -82,24 +102,26 @@ def complete_story(
     story_id: int,
     title: str,
     final_text: str,
-    praise_text: str = None
+    praise_text: str = None,
+    cover_url: str = None
 ) -> None:
-    """Завершить историю с похвалой"""
+    """Завершить историю с похвалой и обложкой"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
         UPDATE stories 
-        SET status = 'completed', title = ?, final_text = ?, praise_text = ?,
+        SET status = 'completed', title = ?, final_text = ?, praise_text = ?, cover_url = ?,
             completed_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    """, (title, final_text, praise_text, story_id))
+    """, (title, final_text, praise_text, cover_url, story_id))
     
     conn.commit()
     conn.close()
     
     praise_status = "with praise" if praise_text else "no praise"
-    logger.info(f"Completed story {story_id}: {title} ({praise_status})")
+    cover_status = "with cover" if cover_url else "no cover"
+    logger.info(f"Completed story {story_id}: {title} ({praise_status}, {cover_status})")
 
 
 def abandon_story(story_id: int) -> None:

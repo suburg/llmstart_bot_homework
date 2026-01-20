@@ -9,11 +9,13 @@ def create_story_dict(
     main_hero: str,
     who_starts: str,
     creativity_level: str,
+    author_name: str = None,
     additional_heroes: Optional[str] = None
 ) -> dict:
     """Создать структуру новой истории для сохранения в БД"""
     return {
         "user_id": user_id,
+        "author_name": author_name,
         "genre": genre,
         "duration": duration,
         "main_hero": main_hero,
