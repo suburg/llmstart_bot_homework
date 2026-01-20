@@ -55,7 +55,24 @@ async def restore_active_stories() -> None:
             user_id = story["user_id"]
             
             # Восстанавливаем сессию в памяти
-            content = json.loads(story.get("content", "[]"))
+            try:
+                content = json.loads(story.get("content", "[]"))
+                
+                # Фильтруем сообщения с пустыми значениями
+                valid_content = [
+                    msg for msg in content
+                    if isinstance(msg, dict) and msg.get("role") and msg.get("content")
+                ]
+                
+                if len(valid_content) < len(content):
+                    logger.warning(
+                        f"Story {story['id']}: filtered {len(content) - len(valid_content)} "
+                        f"invalid messages during restoration"
+                    )
+                
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Story {story['id']}: invalid content JSON, skipping: {e}")
+                continue
             
             _sessions[user_id] = {
                 "chat_id": user_id,
@@ -69,8 +86,8 @@ async def restore_active_stories() -> None:
                     "who_starts": story["who_starts"],
                     "creativity_level": story["creativity_level"],
                 },
-                "content": content,
-                "current_limit": calculate_current_limit(story["duration"], len(content)),
+                "content": valid_content,
+                "current_limit": calculate_current_limit(story["duration"], len(valid_content)),
                 "is_greeted": True
             }
         

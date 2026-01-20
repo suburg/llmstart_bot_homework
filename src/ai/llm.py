@@ -39,6 +39,13 @@ async def send_message(
             f"messages_count={len(messages)}"
         )
         
+        # Проверяем наличие null значений
+        for i, msg in enumerate(messages):
+            if not msg.get("role"):
+                logger.error(f"Message {i} has null role: {msg}")
+            if not msg.get("content"):
+                logger.error(f"Message {i} has null content: {msg}")
+        
         response = await client.chat.completions.create(
             model=model,
             messages=messages,

@@ -201,7 +201,27 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
                 "role": "system",
                 "content": f"Жанр: {genre_context}. Герой: {params['main_hero']}."
             })
-            messages.extend(session["content"])
+            
+            # Фильтруем сообщения с пустыми значениями
+            valid_content = [
+                msg for msg in session["content"]
+                if isinstance(msg, dict) and 
+                   msg.get("role") and 
+                   msg.get("content") and
+                   isinstance(msg.get("content"), str)
+            ]
+            
+            if len(valid_content) < len(session["content"]):
+                invalid_msgs = [
+                    msg for msg in session["content"]
+                    if msg not in valid_content
+                ]
+                logger.warning(
+                    f"handle_completion_choice: Filtered {len(session['content']) - len(valid_content)} "
+                    f"invalid messages for user {chat_id}: {invalid_msgs}"
+                )
+            
+            messages.extend(valid_content)
             
             bot_response = await llm.send_message(messages, temperature=temperature)
             session["content"].append({"role": "assistant", "content": bot_response})
@@ -421,20 +441,21 @@ async def help_handler(message: Message) -> None:
     username = message.from_user.username or "unknown"
     
     help_text = (
-        "🤖 Помощь по боту\n\n"
-        "Я помогаю детям сочинять истории! Мы пишем по очереди, "
-        "развивая сюжет вместе.\n\n"
-        "Доступные команды:\n"
-        "/start - Приветствие и описание\n"
-        "/new_story - Создать новую историю\n"
-        "/my_stories - Посмотреть свои истории\n"
-        "/help - Эта справка\n\n"
-        "Как это работает:\n"
-        "1. Создай историю с помощью /new_story\n"
-        "2. Выбери жанр, длительность и имя героя\n"
-        "3. Мы по очереди пишем по 2-3 предложения\n"
-        "4. Когда история будет готова, я помогу её завершить\n\n"
-        "Удачи в творчестве! ✨"
+        "🎭 **Как сочинять истории:**\n\n"
+        "/new_story - создать новую историю\n"
+        "/my_stories - посмотреть все мои истории\n"
+        "/help - показать эту справку\n\n"
+        "**Процесс сочинения:**\n"
+        "1️⃣ Выбери жанр, длительность и героев\n"
+        "2️⃣ Решай, кто начнёт - ты или я\n"
+        "3️⃣ Пиши по 2-3 предложения, и я продолжу!\n"
+        "🎤 Можешь писать текстом или говорить голосом!\n\n"
+        "**Доступные жанры:**\n"
+        "📚 Сказка - волшебные истории\n"
+        "🗺 Приключение - путешествия и открытия\n"
+        "🐉 Фэнтези - магия и драконы\n"
+        "🔍 Детектив - расследования и тайны\n"
+        "🚀 Научная фантастика - космос и технологии"
     )
-    await message.answer(help_text)
+    await message.answer(help_text, parse_mode="Markdown")
     logger.info(f"Command: /help, chat_id={chat_id}, user={username}")

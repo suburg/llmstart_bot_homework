@@ -9,6 +9,13 @@ config = {
     "llm_base_url": getenv("LLM_BASE_URL"),
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
     
+    # Speech-to-Text API
+    # Для polza.ai используйте: https://api.polza.ai/api/v1
+    # Для OpenAI используйте: https://api.openai.com/v1
+    "speech_api_key": getenv("SPEECH_API_KEY"),
+    "speech_base_url": getenv("SPEECH_BASE_URL"),
+    "speech_model": getenv("SPEECH_MODEL", "whisper-1"),
+    
     # База данных
     "db_path": getenv("DB_PATH", "data/stories.db"),
     
@@ -35,3 +42,5 @@ if not config["llm_api_key"]:
     raise ValueError("LLM_API_KEY must be set in environment variables")
 if not config["llm_base_url"]:
     raise ValueError("LLM_BASE_URL must be set in environment variables")
+if not config["speech_api_key"]:
+    raise ValueError("SPEECH_API_KEY must be set in environment variables")
