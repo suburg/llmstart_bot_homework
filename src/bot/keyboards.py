@@ -66,3 +66,33 @@ def get_completion_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="✍️ Написать ещё", callback_data="complete:no")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_story_actions_keyboard(story_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура действий с историей"""
+    buttons = [
+        [InlineKeyboardButton(
+            text="🗑 Удалить историю",
+            callback_data=f"delete_story:{story_id}"
+        )],
+        [InlineKeyboardButton(
+            text="◀️ Назад к списку",
+            callback_data="back_to_stories"
+        )],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_delete_confirmation_keyboard(story_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура подтверждения удаления"""
+    buttons = [
+        [InlineKeyboardButton(
+            text="✅ Да, удалить",
+            callback_data=f"confirm_delete:{story_id}"
+        )],
+        [InlineKeyboardButton(
+            text="❌ Отмена",
+            callback_data=f"cancel_delete:{story_id}"
+        )],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -177,3 +177,41 @@ def get_all_active_stories() -> list[dict]:
     conn.close()
     
     return [dict(row) for row in rows]
+
+
+def delete_story(story_id: int) -> None:
+    """Удалить историю и связанные файлы"""
+    from pathlib import Path
+    from src.config import config
+    
+    # Получаем данные истории перед удалением
+    story = get_story_by_id(story_id)
+    if not story:
+        logger.warning(f"Attempted to delete non-existent story {story_id}")
+        return
+    
+    # Удаляем связанные файлы
+    images_base = Path(config.get("images_base_path", "data/images"))
+    
+    # Удаляем обложку если есть
+    if story.get("cover_url"):
+        cover_path = Path(story["cover_url"])
+        if cover_path.exists():
+            cover_path.unlink()
+            logger.info(f"Deleted cover file: {story['cover_url']}")
+    
+    # Удаляем загруженное изображение если есть
+    if story.get("initial_image_url"):
+        image_path = Path(story["initial_image_url"])
+        if image_path.exists():
+            image_path.unlink()
+            logger.info(f"Deleted uploaded image: {story['initial_image_url']}")
+    
+    # Удаляем запись из БД
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM stories WHERE id = ?", (story_id,))
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"Deleted story {story_id} from database")

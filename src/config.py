@@ -12,6 +12,9 @@ config = {
     # База данных
     "db_path": getenv("DB_PATH", "data/stories.db"),
     
+    # Хранение файлов
+    "images_base_path": getenv("IMAGES_BASE_PATH", "data/images"),
+    
     # Настройки историй (пары сообщений)
     "max_pairs_short": int(getenv("MAX_PAIRS_SHORT", "5")),
     "max_pairs_medium": int(getenv("MAX_PAIRS_MEDIUM", "10")),

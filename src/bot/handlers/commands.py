@@ -276,6 +276,7 @@ async def my_stories_handler(message: Message) -> None:
 async def view_story_callback(callback: CallbackQuery) -> None:
     """Обработчик просмотра истории"""
     from src.storage import database
+    from src.bot.keyboards import get_story_actions_keyboard
     import json
     
     story_id = int(callback.data.split(":")[1])
@@ -318,9 +319,99 @@ async def view_story_callback(callback: CallbackQuery) -> None:
         if story["status"] == "in_progress":
             text += "✍️ Продолжай писать историю!"
     
-    await callback.message.answer(text, parse_mode="Markdown")
+    # Добавляем клавиатуру с действиями
+    keyboard = get_story_actions_keyboard(story_id)
+    await callback.message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
     logger.info(f"User {callback.message.chat.id} viewed story {story_id}")
+
+
+@commands_router.callback_query(F.data.startswith("delete_story:"))
+async def delete_story_request(callback: CallbackQuery) -> None:
+    """Запрос подтверждения удаления истории"""
+    from src.storage import database
+    from src.bot.keyboards import get_delete_confirmation_keyboard
+    
+    story_id = int(callback.data.split(":")[1])
+    story = database.get_story_by_id(story_id)
+    
+    if not story:
+        await callback.answer("История не найдена")
+        return
+    
+    title = story.get("title") or f"История #{story['id']}"
+    confirmation_text = (
+        f"⚠️ Точно удалить историю **'{title}'**?\n\n"
+        "Это действие нельзя будет отменить."
+    )
+    
+    keyboard = get_delete_confirmation_keyboard(story_id)
+    await callback.message.edit_text(
+        confirmation_text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+    logger.info(f"User {callback.message.chat.id} requested delete for story {story_id}")
+
+
+@commands_router.callback_query(F.data.startswith("confirm_delete:"))
+async def confirm_delete_story(callback: CallbackQuery) -> None:
+    """Подтверждение удаления истории"""
+    from src.storage import database
+    
+    chat_id = callback.message.chat.id
+    story_id = int(callback.data.split(":")[1])
+    story = database.get_story_by_id(story_id)
+    
+    if not story:
+        await callback.answer("История не найдена")
+        return
+    
+    # Проверяем что это история пользователя
+    if story["user_id"] != chat_id:
+        await callback.answer("Это не твоя история!")
+        return
+    
+    title = story.get("title") or f"История #{story['id']}"
+    
+    # Удаляем историю
+    database.delete_story(story_id)
+    
+    await callback.message.edit_text(
+        f"✅ История **'{title}'** удалена.",
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+    logger.info(f"User {chat_id} deleted story {story_id}: {title}")
+
+
+@commands_router.callback_query(F.data.startswith("cancel_delete:"))
+async def cancel_delete_story(callback: CallbackQuery) -> None:
+    """Отмена удаления истории"""
+    await callback.message.edit_text("❌ Удаление отменено.")
+    await callback.answer()
+    logger.info(f"User {callback.message.chat.id} cancelled story deletion")
+
+
+@commands_router.callback_query(F.data == "back_to_stories")
+async def back_to_stories_callback(callback: CallbackQuery) -> None:
+    """Возврат к списку историй"""
+    await callback.message.delete()
+    await callback.answer()
+    
+    # Имитируем команду /my_stories - создаем псевдо-сообщение
+    from aiogram.types import User, Chat
+    
+    # Создаем новое сообщение для обработки
+    pseudo_message = Message(
+        message_id=callback.message.message_id,
+        date=callback.message.date,
+        chat=callback.message.chat,
+        from_user=callback.from_user
+    )
+    
+    await my_stories_handler(pseudo_message)
 
 
 @commands_router.message(Command("help"))
