@@ -1,8 +1,8 @@
 """Форматирование и финализация историй"""
 import logging
 from pathlib import Path
-from ai import llm
-from story.manager import get_temperature_for_creativity
+from src.ai import llm
+from src.story.manager import get_temperature_for_creativity
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ async def finalize_story(content: list, params: dict, story_id: int = None) -> d
     
     # Сохраняем в БД если есть story_id
     if story_id:
-        from storage import database
+        from src.storage import database
         database.complete_story(story_id, title, final_text)
         logger.info(f"Story {story_id} completed and saved to DB: title='{title}'")
     else:

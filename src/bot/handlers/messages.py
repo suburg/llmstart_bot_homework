@@ -3,15 +3,15 @@ import logging
 from aiogram import Router
 from aiogram.types import Message
 
-from storage.memory import (
+from src.storage.memory import (
     get_story_session,
     update_story_session,
     is_user_greeted,
     mark_user_greeted,
 )
-from story import manager
-from bot.keyboards import get_who_starts_keyboard, get_creativity_keyboard
-from ai import llm, prompts
+from src.story import manager
+from src.bot.keyboards import get_who_starts_keyboard, get_creativity_keyboard
+from src.ai import llm, prompts
 
 logger = logging.getLogger(__name__)
 messages_router = Router()
@@ -63,7 +63,7 @@ async def message_handler(message: Message) -> None:
         update_story_session(chat_id, {"content": session["content"]})
         
         # Сохраняем в БД
-        from storage import database
+        from src.storage import database
         if session.get("story_id"):
             database.update_story_content(session["story_id"], session["content"])
         
@@ -72,7 +72,7 @@ async def message_handler(message: Message) -> None:
         current_limit = session.get("current_limit", 10)
         
         if manager.should_offer_completion(pairs_count, current_limit):
-            from bot.keyboards import get_completion_keyboard
+            from src.bot.keyboards import get_completion_keyboard
             
             update_story_session(chat_id, {"state": "awaiting_completion_choice"})
             
@@ -126,7 +126,7 @@ async def message_handler(message: Message) -> None:
         session["content"].append({"role": "user", "content": text})
         
         # Сохраняем в БД
-        from storage import database
+        from src.storage import database
         if session.get("story_id"):
             database.update_story_content(session["story_id"], session["content"])
         
@@ -162,7 +162,7 @@ async def message_handler(message: Message) -> None:
         await message.answer("Готовлю финальную версию истории... ✨")
         
         # Финализация
-        from story import formatter
+        from src.story import formatter
         result = await formatter.finalize_story(
             session["content"],
             session["params"],
@@ -179,7 +179,7 @@ async def message_handler(message: Message) -> None:
         await message.answer(final_message, parse_mode="Markdown")
         
         # Очищаем сессию
-        from storage.memory import clear_story_session
+        from src.storage.memory import clear_story_session
         clear_story_session(chat_id)
         
         logger.info(f"Story completed for user {chat_id}: {result['title']}")

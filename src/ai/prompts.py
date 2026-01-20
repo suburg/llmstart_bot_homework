@@ -23,7 +23,7 @@ def load_system_prompt() -> str:
 
 def get_current_system_prompt(chat_id: int) -> str:
     """Получить текущий системный промпт (кастомный или дефолтный)"""
-    from storage.memory import get_session
+    from src.storage.memory import get_session
     
     session = get_session(chat_id)
     custom = session.get("custom_prompt")

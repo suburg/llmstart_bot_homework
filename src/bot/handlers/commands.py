@@ -4,9 +4,9 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
 
-from storage.memory import mark_user_greeted, get_story_session, update_story_session
-from story import manager
-from bot.keyboards import (
+from src.storage.memory import mark_user_greeted, get_story_session, update_story_session
+from src.story import manager
+from src.bot.keyboards import (
     get_genre_keyboard,
     get_duration_keyboard,
     get_creativity_keyboard,
@@ -106,8 +106,8 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
     
     # Если бот начинает - генерируем начало
     if need_bot_start:
-        from ai import llm, prompts
-        from storage import database
+        from src.ai import llm, prompts
+        from src.storage import database
         
         session = get_story_session(chat_id)
         params = session["params"]
@@ -153,8 +153,8 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
 @commands_router.callback_query(F.data.startswith("complete:"))
 async def handle_completion_choice(callback: CallbackQuery) -> None:
     """Обработка выбора завершения истории"""
-    from storage.memory import clear_story_session
-    from ai import llm, prompts
+    from src.storage.memory import clear_story_session
+    from src.ai import llm, prompts
     
     chat_id = callback.message.chat.id
     choice = callback.data.split(":")[1]
@@ -182,7 +182,7 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
         
     else:
         # Продолжаем историю - увеличиваем лимит на 3 пары
-        from storage import database
+        from src.storage import database
         
         manager.extend_story_limit(chat_id)
         
@@ -232,7 +232,7 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
 @commands_router.message(Command("my_stories"))
 async def my_stories_handler(message: Message) -> None:
     """Обработчик команды /my_stories - показать список историй"""
-    from storage import database
+    from src.storage import database
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     
     chat_id = message.chat.id
@@ -275,7 +275,7 @@ async def my_stories_handler(message: Message) -> None:
 @commands_router.callback_query(F.data.startswith("view_story:"))
 async def view_story_callback(callback: CallbackQuery) -> None:
     """Обработчик просмотра истории"""
-    from storage import database
+    from src.storage import database
     import json
     
     story_id = int(callback.data.split(":")[1])

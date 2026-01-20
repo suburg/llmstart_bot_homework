@@ -2,7 +2,7 @@
 
 # Установка зависимостей через uv
 install:
-	uv sync
+	uv sync --extra dev
 
 # Инициализация базы данных
 init-db:
@@ -10,12 +10,12 @@ init-db:
 
 # Запуск бота в текущем терминале (для разработки)
 run:
-	uv run src/main.py
+	uv run python -m src.main
 
 # Запуск бота в фоновом режиме
 start:
 	@echo "Starting bot in background..."
-	@powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"uv run src/main.py\"' -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id | Out-File -FilePath .bot.pid -Encoding ASCII"
+	@powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"uv run python -m src.main\"' -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id | Out-File -FilePath .bot.pid -Encoding ASCII"
 	@echo "Bot started. PID saved to .bot.pid"
 
 # Остановка бота

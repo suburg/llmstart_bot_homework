@@ -2,7 +2,7 @@
 import json
 import logging
 from pathlib import Path
-from storage.memory import get_story_session, update_story_session
+from src.storage.memory import get_story_session, update_story_session
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +62,8 @@ def start_story_creation(chat_id: int) -> tuple[str, bool]:
     Начать создание новой истории
     Возвращает: (текст сообщения, была_ли_заброшена_старая_история)
     """
-    from storage.memory import create_story_session
-    from storage import database
+    from src.storage.memory import create_story_session
+    from src.storage import database
     
     # Проверяем есть ли активная история
     active_story = database.get_active_story(chat_id)
@@ -102,7 +102,7 @@ def process_genre_choice(chat_id: int, genre: str) -> str:
 
 def process_duration_choice(chat_id: int, duration: str) -> str:
     """Обработать выбор длительности"""
-    from config import config
+    from src.config import config
     
     duration_name = DURATIONS.get(duration, "неизвестная длительность")
     
@@ -183,7 +183,7 @@ def process_who_starts(chat_id: int, who: str) -> tuple[str, bool]:
     Обработать выбор кто начинает
     Создает историю в БД и возвращает: (текст ответа, нужна_ли_генерация_начала_от_бота)
     """
-    from storage import database, models
+    from src.storage import database, models
     
     session = get_story_session(chat_id)
     session["params"]["who_starts"] = who
@@ -235,7 +235,7 @@ def get_genre_context(genre: str) -> str:
 
 def get_temperature_for_creativity(creativity: str) -> float:
     """Получить температуру для LLM по уровню креативности"""
-    from config import config
+    from src.config import config
     
     temps = {
         "low": config["creativity_low"],

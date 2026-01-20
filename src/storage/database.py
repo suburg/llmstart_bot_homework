@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def get_db_connection():
     """Получить соединение с БД"""
-    from config import config
+    from src.config import config
     db_path = config.get("db_path", "data/stories.db")
     
     # Создаем папку data если не существует

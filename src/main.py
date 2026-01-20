@@ -3,10 +3,10 @@ import logging
 import json
 from aiogram import Bot, Dispatcher
 
-from config import config
-from bot.handlers import router
-from storage import database
-from storage.memory import _sessions
+from src.config import config
+from src.bot.handlers import router
+from src.storage import database
+from src.storage.memory import _sessions
 
 def setup_logging() -> None:
     """Настройка логирования"""

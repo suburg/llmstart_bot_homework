@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 def get_genre_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура выбора жанра (динамическая из genres.json)"""
-    from story.manager import load_genres
+    from src.story.manager import load_genres
     
     genres = load_genres()
     buttons = []
