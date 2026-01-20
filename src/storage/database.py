@@ -78,20 +78,28 @@ def update_story_content(story_id: int, content: list) -> None:
     conn.close()
 
 
-def complete_story(story_id: int, title: str, final_text: str) -> None:
-    """Завершить историю"""
+def complete_story(
+    story_id: int,
+    title: str,
+    final_text: str,
+    praise_text: str = None
+) -> None:
+    """Завершить историю с похвалой"""
     conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
         UPDATE stories 
-        SET status = 'completed', title = ?, final_text = ?, completed_at = CURRENT_TIMESTAMP
+        SET status = 'completed', title = ?, final_text = ?, praise_text = ?,
+            completed_at = CURRENT_TIMESTAMP
         WHERE id = ?
-    """, (title, final_text, story_id))
+    """, (title, final_text, praise_text, story_id))
     
     conn.commit()
     conn.close()
-    logger.info(f"Completed story {story_id}: {title}")
+    
+    praise_status = "with praise" if praise_text else "no praise"
+    logger.info(f"Completed story {story_id}: {title} ({praise_status})")
 
 
 def abandon_story(story_id: int) -> None:

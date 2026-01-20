@@ -67,6 +67,7 @@ llmstart_bot_homework/
 │   │   ├── system.txt              # системный промпт для основного диалога
 │   │   ├── storytelling.txt        # промпт для процесса сочинения
 │   │   ├── finalization.txt        # промпт для финализации и создания названия
+│   │   ├── praise.txt              # промпт для генерации персональной похвалы
 │   │   └── cover_generation.txt   # промпт для генерации обложки
 │   ├── config.py                   # конфигурация (включая выбор AI-сервисов)
 │   └── main.py                     # точка входа
@@ -284,16 +285,17 @@ async def generate_story_continuation(
     # Если is_ending=True, подводит к завершению
     
 async def finalize_story(story_content: list, creativity_level: str) -> dict:
-    """Финализация истории: генерация названия и финального текста"""
+    """Финализация истории: генерация названия, финального текста и похвалы"""
     # Загрузка промпта из prompts/finalization.txt
     # Использует соответствующую температуру
-    # Возвращает: {"title": "...", "final_text": "..."}
+    # Возвращает: {"title": "...", "final_text": "...", "praise": "..."}
     
-async def generate_praise(story_content: list, user_contributions: list) -> str:
+async def generate_praise(story_content: list, params: dict) -> str:
     """Генерация персональной похвалы для ребенка"""
-    # Анализ вклада пользователя
+    # Загрузка промпта из prompts/praise.txt
+    # Анализ вклада пользователя (только сообщения с role="user")
     # Выделение лучших идей и креативных моментов
-    # Использует фиксированную температуру для позитивного тона
+    # Использует температуру 0.75 для баланса креативности и предсказуемости
 ```
 
 **Работа с промптами:**
@@ -309,6 +311,7 @@ def load_prompt(filename: str) -> str:
 system_prompt = load_prompt("system.txt")
 storytelling_prompt = load_prompt("storytelling.txt")
 finalization_prompt = load_prompt("finalization.txt")
+praise_prompt = load_prompt("praise.txt")
 cover_prompt = load_prompt("cover_generation.txt")
 ```
 

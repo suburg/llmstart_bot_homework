@@ -173,10 +173,14 @@ async def message_handler(message: Message) -> None:
         final_message = (
             f"🎉 **{result['title']}**\n\n"
             f"{result['final_text']}\n\n"
-            f"✨ История завершена! Отличная работа!"
         )
         
         await message.answer(final_message, parse_mode="Markdown")
+        
+        # Отправляем похвалу отдельным сообщением
+        if result.get("praise"):
+            praise_message = f"✨ **Отличная работа!**\n\n{result['praise']}"
+            await message.answer(praise_message, parse_mode="Markdown")
         
         # Очищаем сессию
         from src.storage.memory import clear_story_session

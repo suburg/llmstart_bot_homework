@@ -53,3 +53,58 @@ async def send_message(
     except Exception as e:
         logger.error(f"LLM Error: {type(e).__name__}: {e}")
         raise
+
+
+async def generate_praise(content: list, params: dict) -> str:
+    """
+    Генерация персональной похвалы для ребенка
+    
+    Анализирует вклад пользователя и выделяет лучшие идеи
+    
+    Args:
+        content: Массив сообщений истории
+        params: Параметры истории (жанр, герои)
+    
+    Returns:
+        Текст похвалы
+    """
+    from pathlib import Path
+    
+    user_messages = [
+        msg["content"] for msg in content if msg["role"] == "user"
+    ]
+    
+    if not user_messages:
+        return "Отличная работа! Ты создал замечательную историю! 🎉"
+    
+    prompt_path = Path(__file__).parent.parent / "prompts" / "praise.txt"
+    
+    try:
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            praise_prompt = f.read().strip()
+    except FileNotFoundError:
+        logger.error(f"Praise prompt not found: {prompt_path}")
+        praise_prompt = (
+            "Ты добрый наставник. Похвали ребенка за вклад в историю. "
+            "Выдели 1-2 лучшие идеи. Будь конкретным и искренним."
+        )
+    
+    user_text = "\n\n".join(user_messages)
+    genre = params.get("genre", "")
+    hero = params.get("main_hero", "")
+    
+    messages = [
+        {"role": "system", "content": praise_prompt},
+        {
+            "role": "user",
+            "content": (
+                f"Жанр: {genre}\nГлавный герой: {hero}\n\n"
+                f"Вклад ребенка:\n{user_text}"
+            )
+        }
+    ]
+    
+    praise = await send_message(messages, temperature=0.75)
+    
+    logger.info(f"Generated praise: length={len(praise)} chars")
+    return praise.strip()
