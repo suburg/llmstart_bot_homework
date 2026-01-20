@@ -1,4 +1,4 @@
-.PHONY: install init-db run start stop status clean test docker-build docker-deploy docker-stop docker-logs
+.PHONY: install init-db run start stop status clean test docker-build docker-deploy docker-run docker-stop docker-logs
 
 # Установка зависимостей через uv
 install:
@@ -40,9 +40,19 @@ test:
 docker-build:
 	docker build -t suburg-llmstart-bot .
 
-# Docker: запуск контейнера
+# Docker: запуск контейнера (production)
 docker-deploy:
-	docker run -d --name suburg-llmstart-bot --env-file .env suburg-llmstart-bot
+	@echo "Creating data directories if needed..."
+	@powershell -Command "New-Item -ItemType Directory -Force -Path data\images\uploads, data\images\covers | Out-Null"
+	@echo "Starting container with volume mount..."
+	docker run -d --name suburg-llmstart-bot --restart=always --env-file .env -v ${CURDIR}/data:/app/data suburg-llmstart-bot
+
+# Docker: запуск контейнера (для разработки, без detached)
+docker-run:
+	@echo "Creating data directories if needed..."
+	@powershell -Command "New-Item -ItemType Directory -Force -Path data\images\uploads, data\images\covers | Out-Null"
+	@echo "Starting container in foreground mode..."
+	docker run --rm --name suburg-llmstart-bot --env-file .env -v ${CURDIR}/data:/app/data suburg-llmstart-bot
 
 # Docker: остановка и удаление контейнера
 docker-stop:

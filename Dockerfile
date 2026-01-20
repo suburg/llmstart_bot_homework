@@ -12,8 +12,14 @@ COPY src/ ./src/
 # Установка зависимостей через uv
 RUN uv sync --frozen
 
-# Создание директории для логов
-RUN mkdir -p logs
+# Создание директорий для логов, БД и изображений
+RUN mkdir -p logs data/images/uploads data/images/covers
+
+# Копирование справочника жанров (необходим для работы бота)
+COPY data/genres.json ./data/
+
+# Volume для персистентности данных (БД, изображения)
+VOLUME ["/app/data"]
 
 # Запуск бота
 CMD ["uv", "run", "src/main.py"]

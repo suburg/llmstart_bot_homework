@@ -45,22 +45,27 @@ make run
 ```bash
 # 1. Настроить .env (см. выше)
 
-# 2. Подготовить данные
-mkdir -p data/images/uploads data/images/covers
-# Создать data/genres.json
-
-# 3. Собрать образ
+# 2. Собрать образ
 make docker-build
 
-# 4. Запустить контейнер
+# 3. Запустить контейнер
+# Production (detached mode, auto-restart):
+make docker-deploy
+
+# ИЛИ для разработки (foreground mode):
 make docker-run
 
-# 5. Просмотр логов
+# 4. Просмотр логов
 make docker-logs
 
-# 6. Остановка
+# 5. Остановка
 make docker-stop
 ```
+
+**Примечание:** 
+- `make docker-deploy` автоматически создаёт директории `data/images/uploads` и `data/images/covers`
+- Volume `data/` монтируется для сохранения БД и изображений между перезапусками
+- `data/genres.json` копируется в образ при сборке
 
 ### Вариант 3: Деплой на облачный VPS
 
