@@ -21,6 +21,9 @@ ENV/
 logs/
 *.log
 
+# Data (database, images, etc.)
+data/
+
 # Bot PID file
 .bot.pid
 
