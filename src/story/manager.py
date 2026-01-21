@@ -172,10 +172,21 @@ def process_creativity_choice(chat_id: int, creativity: str) -> str:
     
     update_story_session(chat_id, {
         "params": session["params"],
-        "state": "choosing_who_starts"
+        "state": "awaiting_image_choice"
     })
     
-    return f"Замечательно! Креативность: {creativity_names.get(creativity, 'Обычная')} ✨\n\nКто начнёт историю?"
+    return f"Замечательно! Креативность: {creativity_names.get(creativity, 'Обычная')} ✨"
+
+
+def request_image_upload(chat_id: int) -> str:
+    """Предложить загрузить изображение для вдохновения"""
+    update_story_session(chat_id, {"state": "awaiting_image_choice"})
+    
+    return (
+        "Хочешь загрузить изображение для вдохновения? 📸\n\n"
+        "Я проанализирую его и создам историю в похожем стиле.\n"
+        "Это необязательно — можешь пропустить этот шаг."
+    )
 
 
 def process_who_starts(chat_id: int, who: str, author_name: str = None) -> tuple[str, bool]:
@@ -197,7 +208,8 @@ def process_who_starts(chat_id: int, who: str, author_name: str = None) -> tuple
         main_hero=session["params"]["main_hero"],
         who_starts=who,
         creativity_level=session["params"]["creativity_level"],
-        additional_heroes=session["params"].get("additional_heroes")
+        additional_heroes=session["params"].get("additional_heroes"),
+        initial_image_url=session["params"].get("initial_image_url")
     )
     
     story_id = database.create_story(story_data)

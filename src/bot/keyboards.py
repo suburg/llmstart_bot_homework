@@ -96,3 +96,18 @@ def get_delete_confirmation_keyboard(story_id: int) -> InlineKeyboardMarkup:
         )],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_image_upload_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура выбора загрузки изображения"""
+    buttons = [
+        [InlineKeyboardButton(
+            text="📸 Загрузить изображение",
+            callback_data="image:upload"
+        )],
+        [InlineKeyboardButton(
+            text="➡️ Пропустить",
+            callback_data="image:skip"
+        )],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

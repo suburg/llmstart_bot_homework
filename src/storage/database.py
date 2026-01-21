@@ -61,8 +61,8 @@ def create_story(story_data: dict) -> int:
     
     cursor.execute("""
         INSERT INTO stories (user_id, author_name, genre, duration, main_hero, additional_heroes,
-                           who_starts, creativity_level, status, content)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           who_starts, creativity_level, status, content, initial_image_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         story_data["user_id"],
         story_data.get("author_name"),
@@ -73,7 +73,8 @@ def create_story(story_data: dict) -> int:
         story_data["who_starts"],
         story_data["creativity_level"],
         story_data["status"],
-        story_data["content"]
+        story_data["content"],
+        story_data.get("initial_image_url")
     ))
     
     story_id = cursor.lastrowid

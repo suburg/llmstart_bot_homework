@@ -11,6 +11,7 @@ from src.bot.keyboards import (
     get_duration_keyboard,
     get_creativity_keyboard,
     get_who_starts_keyboard,
+    get_image_upload_keyboard,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,9 +85,13 @@ async def process_creativity_callback(callback: CallbackQuery) -> None:
     creativity = callback.data.split(":")[1]
     
     response = manager.process_creativity_choice(chat_id, creativity)
-    keyboard = get_who_starts_keyboard()
     
-    await callback.message.edit_text(response, reply_markup=keyboard)
+    # Предлагаем загрузить изображение
+    image_prompt = manager.request_image_upload(chat_id)
+    keyboard = get_image_upload_keyboard()
+    
+    await callback.message.edit_text(response)
+    await callback.message.answer(image_prompt, reply_markup=keyboard)
     await callback.answer()
     logger.info(f"User {chat_id} chose creativity: {creativity}")
 
@@ -121,12 +126,15 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
         genre_context = manager.get_genre_context(params["genre"])
         hero = params["main_hero"]
         additional = params.get("additional_heroes")
+        image_desc = params.get("image_description")
         
         story_prompt = (
             f"Начни {genre_context} про главного героя по имени {hero}. "
         )
         if additional:
             story_prompt += f"Другие персонажи: {additional}. "
+        if image_desc:
+            story_prompt += f"Стиль изображения для вдохновения: {image_desc}. "
         story_prompt += "Напиши только 2-3 первых предложения, которые заинтересуют ребенка."
         
         # Получаем температуру из параметров
@@ -437,6 +445,36 @@ async def back_to_stories_callback(callback: CallbackQuery) -> None:
     )
     
     await my_stories_handler(pseudo_message)
+
+
+@commands_router.callback_query(F.data == "image:skip")
+async def skip_image_upload(callback: CallbackQuery) -> None:
+    """Пропуск загрузки изображения"""
+    chat_id = callback.message.chat.id
+    
+    update_story_session(chat_id, {"state": "choosing_who_starts"})
+    
+    keyboard = get_who_starts_keyboard()
+    await callback.message.edit_text("Хорошо! Продолжаем без изображения.")
+    await callback.message.answer("Кто начнёт историю?", reply_markup=keyboard)
+    await callback.answer()
+    logger.info(f"User {chat_id} skipped image upload")
+
+
+@commands_router.callback_query(F.data == "image:upload")
+async def request_image_upload_callback(callback: CallbackQuery) -> None:
+    """Запрос загрузки изображения"""
+    chat_id = callback.message.chat.id
+    
+    update_story_session(chat_id, {"state": "uploading_image"})
+    
+    await callback.message.edit_text(
+        "Отлично! 📸\n\n"
+        "Отправь мне изображение (фото).\n"
+        "Размер файла должен быть не более 5 МБ."
+    )
+    await callback.answer()
+    logger.info(f"User {chat_id} chose to upload image")
 
 
 @commands_router.message(Command("help"))

@@ -103,6 +103,10 @@ async def process_text_input(chat_id: int, text: str, message: Message) -> None:
         if additional:
             genre_instruction += f" Другие персонажи: {additional}."
         
+        # Добавляем описание изображения если есть
+        if params.get("image_description"):
+            genre_instruction += f" Стиль изображения для вдохновения: {params['image_description']}"
+        
         # Добавляем инструкцию для подведения к концу если близко
         ending_instruction = manager.get_ending_instruction(pairs_count, current_limit)
         if ending_instruction:
@@ -325,3 +329,91 @@ async def voice_handler(message: Message) -> None:
         # Удаляем временный файл если он существует
         if temp_path and Path(temp_path).exists():
             os.unlink(temp_path)
+
+
+@messages_router.message(F.photo)
+async def photo_handler(message: Message) -> None:
+    """Обработчик фотографий"""
+    from pathlib import Path
+    from src.ai import vision
+    from src.config import config
+    from src.bot.keyboards import get_who_starts_keyboard
+    
+    chat_id = message.chat.id
+    session = get_story_session(chat_id)
+    
+    # Проверяем состояние
+    if not session or session.get("state") != "uploading_image":
+        await message.answer(
+            "Изображения можно загружать только при создании новой истории.\n"
+            "Напиши /new_story чтобы начать."
+        )
+        return
+    
+    # Получаем самое большое фото
+    photo = message.photo[-1]
+    
+    # Проверка размера
+    max_size_mb = config.get("max_image_size_mb", 5)
+    max_size_bytes = max_size_mb * 1024 * 1024
+    
+    if photo.file_size > max_size_bytes:
+        await message.answer(
+            f"❌ Изображение слишком большое ({photo.file_size / 1024 / 1024:.1f} МБ).\n"
+            f"Максимальный размер: {max_size_mb} МБ.\n\n"
+            "Попробуй отправить изображение меньшего размера или пропусти этот шаг."
+        )
+        return
+    
+    try:
+        # Скачиваем изображение
+        file = await message.bot.get_file(photo.file_id)
+        
+        # Создаем папку uploads если нет
+        uploads_dir = Path(config["images_base_path"]) / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Сохраняем файл
+        import time
+        filename = f"{chat_id}_{session.get('story_id', int(time.time()))}.jpg"
+        image_path = uploads_dir / filename
+        
+        await message.bot.download_file(file.file_path, str(image_path))
+        
+        logger.info(
+            f"Image uploaded by user {chat_id}: "
+            f"size={photo.file_size / 1024:.1f}KB, path={image_path}"
+        )
+        
+        # Анализируем изображение
+        await message.answer("Анализирую изображение... 🎨")
+        
+        description = await vision.analyze_image(str(image_path))
+        
+        # Сохраняем в сессию
+        session["params"]["image_description"] = description
+        session["params"]["initial_image_url"] = str(image_path)
+        update_story_session(chat_id, {
+            "params": session["params"],
+            "state": "choosing_who_starts"
+        })
+        
+        # Показываем результат анализа
+        await message.answer(
+            f"Отлично! Я вижу:\n\n_{description}_\n\n"
+            "Буду использовать этот стиль в истории! ✨",
+            parse_mode="Markdown"
+        )
+        
+        # Переходим к выбору кто начинает
+        keyboard = get_who_starts_keyboard()
+        await message.answer("Кто начнёт историю?", reply_markup=keyboard)
+        
+        logger.info(f"Image analyzed for user {chat_id}")
+        
+    except Exception as e:
+        logger.error(f"Image processing error for user {chat_id}: {e}", exc_info=True)
+        await message.answer(
+            "Произошла ошибка при обработке изображения. "
+            "Попробуй отправить другое изображение или пропусти этот шаг."
+        )

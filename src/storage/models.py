@@ -10,7 +10,8 @@ def create_story_dict(
     who_starts: str,
     creativity_level: str,
     author_name: str = None,
-    additional_heroes: Optional[str] = None
+    additional_heroes: Optional[str] = None,
+    initial_image_url: Optional[str] = None
 ) -> dict:
     """Создать структуру новой истории для сохранения в БД"""
     return {
@@ -24,4 +25,5 @@ def create_story_dict(
         "creativity_level": creativity_level,
         "status": "in_progress",
         "content": "[]",  # JSON array
+        "initial_image_url": initial_image_url,
     }

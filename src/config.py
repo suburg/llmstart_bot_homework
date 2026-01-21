@@ -21,11 +21,19 @@ config = {
     "image_gen_base_url": getenv("IMAGE_GEN_BASE_URL", "https://api.polza.ai/api/v1"),
     "image_gen_model": getenv("IMAGE_GEN_MODEL", "seedream-v4"),
     
+    # Vision API (анализ изображений)
+    # Для polza.ai используйте: https://api.polza.ai/v1
+    # Для OpenAI используйте: https://api.openai.com/v1
+    "vision_api_key": getenv("VISION_API_KEY"),
+    "vision_base_url": getenv("VISION_BASE_URL", "https://api.polza.ai/v1"),
+    "vision_model": getenv("VISION_MODEL", "openai/gpt-4o-mini"),
+    
     # База данных
     "db_path": getenv("DB_PATH", "data/stories.db"),
     
     # Хранение файлов
     "images_base_path": getenv("IMAGES_BASE_PATH", "data/images"),
+    "max_image_size_mb": int(getenv("MAX_IMAGE_SIZE_MB", "5")),
     
     # Настройки историй (пары сообщений)
     "max_pairs_short": int(getenv("MAX_PAIRS_SHORT", "5")),
