@@ -14,7 +14,7 @@ from src.storage.memory import (
 )
 from src.story import manager
 from src.bot.keyboards import get_who_starts_keyboard, get_creativity_keyboard
-from src.ai import llm, prompts, speech
+from src.ai import llm, prompts, speech, moderation
 
 logger = logging.getLogger(__name__)
 messages_router = Router()
@@ -45,6 +45,18 @@ async def process_text_input(chat_id: int, text: str, message: Message) -> None:
     
     state = session.get("state")
     logger.info(f"Session state for {chat_id}: {state}")
+    
+    # Проверка безопасности контента для сообщений в процессе сочинения
+    if state in ["storytelling", "writing_finale"]:
+        safety_check = await moderation.check_content_safety(text)
+        if not safety_check["is_safe"]:
+            logger.info(f"Unsafe content from user {chat_id}: length={len(text)}")
+            await message.answer(
+                "😊 Давай сочиним что-нибудь более подходящее для детской истории! "
+                "Наше приложение предназначено для добрых и безопасных историй. "
+                "Попробуй переформулировать свою мысль."
+            )
+            return
     
     # Обработка ввода имени героя
     if state == "entering_hero_name":
