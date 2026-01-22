@@ -22,4 +22,4 @@ COPY data/genres.json ./data/
 VOLUME ["/app/data"]
 
 # Запуск бота
-CMD ["uv", "run", "src/main.py"]
+CMD ["uv", "run", "python", "-m", "src.main"]
