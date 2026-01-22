@@ -3,6 +3,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
+import openai
 
 from src.storage.memory import mark_user_greeted, get_story_session, update_story_session
 from src.story import manager
@@ -142,25 +143,50 @@ async def process_who_starts_callback(callback: CallbackQuery) -> None:
         temperature = manager.get_temperature_for_creativity(creativity)
         
         system_prompt = prompts.load_system_prompt()
-        bot_start = await llm.send_message(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": story_prompt}
-            ],
-            temperature=temperature
-        )
         
-        # Сохраняем начало в историю
-        session["content"].append({"role": "assistant", "content": bot_start})
-        update_story_session(chat_id, {"content": session["content"]})
-        
-        # Сохраняем в БД
-        if session.get("story_id"):
-            database.update_story_content(session["story_id"], session["content"])
-        
-        await callback.message.answer(bot_start)
-        await callback.message.answer("\nТеперь твоя очередь! Продолжи историю (2-3 предложения).")
-        logger.info(f"Bot started story for user {chat_id}")
+        try:
+            bot_start = await llm.send_message(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": story_prompt}
+                ],
+                temperature=temperature
+            )
+            
+            # Сохраняем начало в историю
+            session["content"].append({"role": "assistant", "content": bot_start})
+            update_story_session(chat_id, {"content": session["content"]})
+            
+            # Сохраняем в БД
+            if session.get("story_id"):
+                database.update_story_content(session["story_id"], session["content"])
+            
+            await callback.message.answer(bot_start)
+            await callback.message.answer("\nТеперь твоя очередь! Продолжи историю (2-3 предложения).")
+            logger.info(f"Bot started story for user {chat_id}")
+            
+        except openai.RateLimitError as e:
+            logger.warning(f"Rate limit error starting story for user {chat_id}: {e}")
+            await callback.message.answer(
+                "⏰ Слишком много запросов. Подожди немного и попробуй начать заново."
+            )
+            # Откатываем состояние, чтобы пользователь мог попробовать снова
+            update_story_session(chat_id, {"state": "choosing_who_starts"})
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            if 'temporarily unavailable' in error_msg or 'timeout' in error_msg:
+                logger.warning(f"Temporary LLM error starting story for user {chat_id}: {e}")
+                await callback.message.answer(
+                    "😔 Извини, сервис временно недоступен. Попробуй через минуту начать снова."
+                )
+            else:
+                logger.error(f"LLM error starting story for user {chat_id}: {e}", exc_info=True)
+                await callback.message.answer(
+                    "Произошла ошибка при создании начала истории. Попробуй позже или напиши /help"
+                )
+            # Откатываем состояние
+            update_story_session(chat_id, {"state": "choosing_who_starts"})
 
 
 @commands_router.callback_query(F.data.startswith("complete:"))
@@ -236,22 +262,52 @@ async def handle_completion_choice(callback: CallbackQuery) -> None:
             
             messages.extend(valid_content)
             
-            bot_response = await llm.send_message(messages, temperature=temperature)
-            session["content"].append({"role": "assistant", "content": bot_response})
-            
-            update_story_session(chat_id, {"state": "storytelling", "content": session["content"]})
-            
-            # Сохраняем в БД
-            if session.get("story_id"):
-                database.update_story_content(session["story_id"], session["content"])
-            
-            await callback.message.edit_text(
-                "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
-            )
-            await callback.message.answer(bot_response)
-            await callback.message.answer("Продолжай историю дальше! ✍️")
-            
-            logger.info(f"User {chat_id} chose to continue story")
+            try:
+                bot_response = await llm.send_message(messages, temperature=temperature)
+                session["content"].append({"role": "assistant", "content": bot_response})
+                
+                update_story_session(chat_id, {"state": "storytelling", "content": session["content"]})
+                
+                # Сохраняем в БД
+                if session.get("story_id"):
+                    database.update_story_content(session["story_id"], session["content"])
+                
+                await callback.message.edit_text(
+                    "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+                )
+                await callback.message.answer(bot_response)
+                await callback.message.answer("Продолжай историю дальше! ✍️")
+                
+                logger.info(f"User {chat_id} chose to continue story")
+                
+            except openai.RateLimitError as e:
+                logger.warning(f"Rate limit error continuing story for user {chat_id}: {e}")
+                await callback.message.edit_text(
+                    "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+                )
+                await callback.message.answer(
+                    "⏰ Слишком много запросов. Подожди немного и продолжи писать историю."
+                )
+                # Остаемся в режиме storytelling
+                update_story_session(chat_id, {"state": "storytelling"})
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                await callback.message.edit_text(
+                    "История подходит к концу! 📖✨\n\nХочешь завершить историю или продолжить ещё немного?"
+                )
+                if 'temporarily unavailable' in error_msg or 'timeout' in error_msg:
+                    logger.warning(f"Temporary LLM error continuing story for user {chat_id}: {e}")
+                    await callback.message.answer(
+                        "😔 Извини, сервис временно недоступен. Попробуй через минуту продолжить историю."
+                    )
+                else:
+                    logger.error(f"LLM error continuing story for user {chat_id}: {e}", exc_info=True)
+                    await callback.message.answer(
+                        "Произошла ошибка. Попробуй продолжить историю позже или напиши /help"
+                    )
+                # Остаемся в режиме storytelling
+                update_story_session(chat_id, {"state": "storytelling"})
         else:
             update_story_session(chat_id, {"state": "storytelling"})
             await callback.message.edit_text(

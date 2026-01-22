@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 from pathlib import Path
 from aiogram import Router, F
 from aiogram.types import Message
+import openai
 
 from src.storage.memory import (
     get_story_session,
@@ -147,18 +148,49 @@ async def process_text_input(chat_id: int, text: str, message: Message) -> None:
         
         messages.extend(valid_content)
         
-        bot_response = await llm.send_message(messages, temperature=temperature)
-        
-        # Сохраняем ответ бота
-        session["content"].append({"role": "assistant", "content": bot_response})
-        update_story_session(chat_id, {"content": session["content"]})
-        
-        # Сохраняем в БД
-        if session.get("story_id"):
-            database.update_story_content(session["story_id"], session["content"])
-        
-        await message.answer(bot_response)
-        logger.info(f"Story continues for user {chat_id}, pairs: {len(session['content'])//2}")
+        try:
+            bot_response = await llm.send_message(messages, temperature=temperature)
+            
+            # Сохраняем ответ бота
+            session["content"].append({"role": "assistant", "content": bot_response})
+            update_story_session(chat_id, {"content": session["content"]})
+            
+            # Сохраняем в БД
+            if session.get("story_id"):
+                database.update_story_content(session["story_id"], session["content"])
+            
+            await message.answer(bot_response)
+            logger.info(f"Story continues for user {chat_id}, pairs: {len(session['content'])//2}")
+            
+        except openai.RateLimitError as e:
+            logger.warning(f"Rate limit error for user {chat_id}: {e}")
+            await message.answer(
+                "⏰ Слишком много запросов. Подожди немного и попробуй снова."
+            )
+            # Откатываем сообщение пользователя, чтобы он мог повторить
+            session["content"].pop()
+            update_story_session(chat_id, {"content": session["content"]})
+            
+        except Exception as e:
+            # Проверяем, временная ли это ошибка
+            error_msg = str(e).lower()
+            if 'temporarily unavailable' in error_msg or 'timeout' in error_msg:
+                logger.warning(f"Temporary LLM error for user {chat_id}: {e}")
+                await message.answer(
+                    "😔 Извини, сервис временно недоступен. Попробуй через минуту.\n\n"
+                    "Твоё сообщение сохранено, можешь отправить его снова."
+                )
+                # Откатываем сообщение пользователя
+                session["content"].pop()
+                update_story_session(chat_id, {"content": session["content"]})
+            else:
+                logger.error(f"LLM error for user {chat_id}: {e}", exc_info=True)
+                await message.answer(
+                    "Произошла ошибка при генерации ответа. Попробуй позже или напиши /help"
+                )
+                # Откатываем сообщение пользователя
+                session["content"].pop()
+                update_story_session(chat_id, {"content": session["content"]})
     
     elif state == "writing_finale":
         # Ребенок написал финал истории
@@ -195,16 +227,48 @@ async def process_text_input(chat_id: int, text: str, message: Message) -> None:
         ]
         messages.extend(valid_content)
         
-        bot_finale = await llm.send_message(messages, temperature=temperature)
-        session["content"].append({"role": "assistant", "content": bot_finale})
-        update_story_session(chat_id, {"content": session["content"]})
-        
-        # Сохраняем в БД
-        if session.get("story_id"):
-            database.update_story_content(session["story_id"], session["content"])
-        
-        await message.answer(bot_finale)
-        await message.answer("Готовлю финальную версию истории... ✨")
+        try:
+            bot_finale = await llm.send_message(messages, temperature=temperature)
+            session["content"].append({"role": "assistant", "content": bot_finale})
+            update_story_session(chat_id, {"content": session["content"]})
+            
+            # Сохраняем в БД
+            if session.get("story_id"):
+                database.update_story_content(session["story_id"], session["content"])
+            
+            await message.answer(bot_finale)
+            await message.answer("Готовлю финальную версию истории... ✨")
+            
+        except openai.RateLimitError as e:
+            logger.warning(f"Rate limit error for finale, user {chat_id}: {e}")
+            await message.answer(
+                "⏰ Слишком много запросов. Подожди немного и попробуй снова отправить свой финал."
+            )
+            # Откатываем сообщение пользователя
+            session["content"].pop()
+            update_story_session(chat_id, {"content": session["content"]})
+            return
+            
+        except Exception as e:
+            # Проверяем, временная ли это ошибка
+            error_msg = str(e).lower()
+            if 'temporarily unavailable' in error_msg or 'timeout' in error_msg:
+                logger.warning(f"Temporary LLM error for finale, user {chat_id}: {e}")
+                await message.answer(
+                    "😔 Извини, сервис временно недоступен. Попробуй через минуту отправить свой финал снова."
+                )
+                # Откатываем сообщение пользователя
+                session["content"].pop()
+                update_story_session(chat_id, {"content": session["content"]})
+            else:
+                logger.error(f"LLM error for finale, user {chat_id}: {e}", exc_info=True)
+                await message.answer(
+                    "Произошла ошибка при генерации финала. Попробуй позже или напиши /help"
+                )
+                # Откатываем сообщение пользователя
+                session["content"].pop()
+                update_story_session(chat_id, {"content": session["content"]})
+            return
         
         # Финализация
         from src.story import formatter

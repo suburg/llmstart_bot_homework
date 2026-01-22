@@ -8,6 +8,9 @@ config = {
     "llm_api_key": getenv("LLM_API_KEY"),
     "llm_base_url": getenv("LLM_BASE_URL"),
     "llm_model": getenv("LLM_MODEL", "openai/gpt-4o-mini"),
+    "llm_timeout": float(getenv("LLM_TIMEOUT", "30.0")),
+    "llm_max_retries": int(getenv("LLM_MAX_RETRIES", "3")),
+    "llm_retry_delay": float(getenv("LLM_RETRY_DELAY", "2.0")),
     
     # Speech-to-Text API
     # Для polza.ai используйте: https://api.polza.ai/api/v1

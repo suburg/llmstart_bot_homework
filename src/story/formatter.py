@@ -1,6 +1,7 @@
 """Форматирование и финализация историй"""
 import logging
 from pathlib import Path
+import openai
 from src.ai import llm
 from src.story.manager import get_temperature_for_creativity
 
@@ -37,12 +38,23 @@ async def finalize_story(content: list, params: dict, story_id: int = None) -> d
     creativity = params.get("creativity_level", "medium")
     temperature = get_temperature_for_creativity(creativity)
     
-    response = await llm.send_message(messages, temperature=temperature)
+    # Генерируем название и финальный текст с fallback
+    try:
+        response = await llm.send_message(messages, temperature=temperature)
+        title, final_text = parse_response(response, story_text)
+    except Exception as e:
+        logger.error(f"Failed to generate title/final text: {e}")
+        # Graceful fallback - используем исходный текст
+        title = "Наша замечательная история"
+        final_text = story_text
     
-    title, final_text = parse_response(response, story_text)
-    
-    # Генерируем персональную похвалу
-    praise = await llm.generate_praise(content, params)
+    # Генерируем персональную похвалу с fallback
+    try:
+        praise = await llm.generate_praise(content, params)
+    except Exception as e:
+        logger.error(f"Failed to generate praise: {e}")
+        # Graceful fallback
+        praise = "Отличная работа! Ты создал замечательную историю! 🎉"
     
     # Генерируем обложку (с graceful fallback)
     cover_url = None
