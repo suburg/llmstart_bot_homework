@@ -1,5 +1,16 @@
 .PHONY: install init-db run start stop status clean test docker-build docker-deploy docker-run docker-stop docker-logs
 
+# Определение операционной системы
+ifeq ($(OS),Windows_NT)
+    DETECTED_OS := Windows
+    RM := powershell -Command Remove-Item -ErrorAction SilentlyContinue
+    MKDIR := powershell -Command New-Item -ItemType Directory -Force
+else
+    DETECTED_OS := $(shell uname -s)
+    RM := rm -f
+    MKDIR := mkdir -p
+endif
+
 # Установка зависимостей через uv
 install:
 	uv sync --extra dev
@@ -15,22 +26,27 @@ run:
 # Запуск бота в фоновом режиме
 start:
 	@echo "Starting bot in background..."
-	@powershell -Command "Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"uv run python -m src.main\"' -WindowStyle Hidden -PassThru | Select-Object -ExpandProperty Id | Out-File -FilePath .bot.pid -Encoding ASCII"
+	@uv run python scripts/daemon.py start
 	@echo "Bot started. PID saved to .bot.pid"
 
 # Остановка бота
 stop:
 	@echo "Stopping bot..."
-	@powershell -Command "if (Test-Path .bot.pid) { $$pid = Get-Content .bot.pid; Stop-Process -Id $$pid -Force -ErrorAction SilentlyContinue; Remove-Item .bot.pid -ErrorAction SilentlyContinue; Write-Host 'Bot stopped' } else { Write-Host 'Bot is not running (.bot.pid not found)' }"
+	@uv run python scripts/daemon.py stop
 
 # Проверка статуса бота
 status:
-	@powershell -Command "if (Test-Path .bot.pid) { $$pid = Get-Content .bot.pid; if (Get-Process -Id $$pid -ErrorAction SilentlyContinue) { Write-Host 'Bot is running (PID: '$$pid')' } else { Write-Host 'Bot is not running (stale PID file)'; Remove-Item .bot.pid } } else { Write-Host 'Bot is not running' }"
+	@uv run python scripts/daemon.py status
 
 # Очистка временных файлов
 clean:
+ifeq ($(DETECTED_OS),Windows)
 	@powershell -Command "if (Test-Path logs/bot.log) { Remove-Item logs/bot.log }"
 	@powershell -Command "Get-ChildItem -Path . -Recurse -Filter '__pycache__' -Directory | Remove-Item -Recurse -Force"
+else
+	@rm -f logs/bot.log
+	@find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+endif
 
 # Запуск тестов
 test:
@@ -43,16 +59,24 @@ docker-build:
 # Docker: запуск контейнера (production)
 docker-deploy:
 	@echo "Creating data directories if needed..."
-	@powershell -Command "New-Item -ItemType Directory -Force -Path data\images\uploads, data\images\covers | Out-Null"
-	@echo "Starting container with volume mount..."
-	docker run -d --name suburg-llmstart-bot --restart=always --env-file .env -v ${CURDIR}/data:/app/data suburg-llmstart-bot
+ifeq ($(DETECTED_OS),Windows)
+	@powershell -Command "New-Item -ItemType Directory -Force -Path data/images/uploads, data/images/covers | Out-Null"
+	@docker run -d --name suburg-llmstart-bot --restart=always --env-file .env -v $(CURDIR)/data:/app/data suburg-llmstart-bot
+else
+	@mkdir -p data/images/uploads data/images/covers
+	@docker run -d --name suburg-llmstart-bot --restart=always --env-file .env -v $(PWD)/data:/app/data suburg-llmstart-bot
+endif
 
 # Docker: запуск контейнера (для разработки, без detached)
 docker-run:
 	@echo "Creating data directories if needed..."
-	@powershell -Command "New-Item -ItemType Directory -Force -Path data\images\uploads, data\images\covers | Out-Null"
-	@echo "Starting container in foreground mode..."
-	docker run --rm --name suburg-llmstart-bot --env-file .env -v ${CURDIR}/data:/app/data suburg-llmstart-bot
+ifeq ($(DETECTED_OS),Windows)
+	@powershell -Command "New-Item -ItemType Directory -Force -Path data/images/uploads, data/images/covers | Out-Null"
+	@docker run --rm --name suburg-llmstart-bot --env-file .env -v $(CURDIR)/data:/app/data suburg-llmstart-bot
+else
+	@mkdir -p data/images/uploads data/images/covers
+	@docker run --rm --name suburg-llmstart-bot --env-file .env -v $(PWD)/data:/app/data suburg-llmstart-bot
+endif
 
 # Docker: остановка и удаление контейнера
 docker-stop:
